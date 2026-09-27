@@ -52,10 +52,11 @@ addEventListener('keydown', (e) => {
 });
 addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 addEventListener('blur', () => keys.clear());
-addEventListener('mousedown', (e) => { if (G.state === 'fight') pressed.add(e.button === 2 ? 'k' : 'j'); });
+addEventListener('mousedown', (e) => { if (G.state !== 'fight') return; if (e.button === 2) { pressed.add('u'); keys.add('u'); } else if (e.button === 0) pressed.add('j'); });
+addEventListener('mouseup', (e) => { if (e.button === 2) keys.delete('u'); });
 addEventListener('contextmenu', (e) => e.preventDefault());
 
-const blankIntent = () => ({ fwd: 0, side: 0, up: 0, boost: false, melee: false, blast: false, guard: false, charge: false, vanish: false, super: -1, transform: false, revert: false, recover: false, mash: false });
+const blankIntent = () => ({ fwd: 0, side: 0, up: 0, boost: false, melee: false, heavy: false, heavyHold: false, blast: false, guard: false, charge: false, vanish: false, super: -1, transform: false, revert: false, recover: false, mash: false });
 
 // ---------------- UI helpers ----------------
 function say(f, text, dur = 3, expr = 'shout') {
@@ -90,6 +91,48 @@ const APE_STEPS = [
   { pose: 'punchL', dur: 0.45, at: 0.5, dmg: 480 },
   { pose: 'smashA', pose2: 'smashB', dur: 0.75, at: 0.62, dmg: 900, knock: true },
 ];
+// Melee styles: every form picks one. fin[i] = finisher when heavy is pressed after light hit i.
+const STYLES = {
+  turtle: { name: 'Turtle School', speed: 1, dmg: 1, lights: 5, fin: ['launch', 'blowback', 'spike', 'kiburst', 'blowback'], heavy: ['heavy', 'spin'] },
+  kaio: { name: 'Kaio-ken Rush', speed: 1.3, dmg: 0.9, lights: 6, fin: ['multi', 'launch', 'multi', 'spike', 'multi', 'kiburst'], heavy: ['multi', 'heavy'] },
+  ssj: { name: 'Super Saiyan', speed: 1.05, dmg: 1.15, lights: 5, fin: ['kiburst', 'launch', 'spike', 'multi', 'blowback'], heavy: ['heavy', 'kiburst'] },
+  ssj2: { name: 'Ascended Lightning', speed: 1.2, dmg: 1.2, lights: 6, fin: ['multi', 'kiburst', 'launch', 'spike', 'kiburst', 'blowback'], heavy: ['heavy', 'multi'] },
+  ssj3: { name: 'Super Saiyan 3', speed: 0.9, dmg: 1.45, lights: 4, fin: ['kiburst', 'spike', 'launch', 'kiburst'], heavy: ['heavy', 'kiburst'] },
+  elite: { name: 'Saiyan Elite', speed: 1.05, dmg: 1, lights: 5, fin: ['kiburst', 'launch', 'blowback', 'spike', 'kiburst'], heavy: ['spin', 'heavy'] },
+  prince: { name: 'Prince\'s Pride', speed: 1.1, dmg: 1.1, lights: 5, fin: ['kiburst', 'spike', 'launch', 'kiburst', 'blowback'], heavy: ['heavy', 'kiburst'] },
+  majin: { name: 'Majin Fury (lifesteal)', speed: 1.1, dmg: 1.25, lights: 5, fin: ['kiburst', 'spike', 'kiburst', 'launch', 'kiburst'], heavy: ['heavy', 'kiburst'], lifesteal: 0.12 },
+  demon: { name: 'Demon Clan (stretch arm)', speed: 0.95, dmg: 1, lights: 5, fin: ['grab', 'launch', 'blowback', 'kiburst', 'spike'], heavy: ['stretch', 'spin'] },
+  demonFast: { name: 'Unburdened', speed: 1.3, dmg: 0.95, lights: 6, fin: ['multi', 'grab', 'launch', 'spike', 'blowback', 'kiburst'], heavy: ['stretch', 'multi'] },
+  namekian: { name: 'Namekian Warrior', speed: 1.1, dmg: 1.2, lights: 5, fin: ['grab', 'kiburst', 'launch', 'spike', 'kiburst'], heavy: ['stretch', 'kiburst'] },
+  tyrant: { name: 'Galactic Tyrant (tail)', speed: 1.05, dmg: 1, lights: 5, fin: ['kiburst', 'tail', 'launch', 'spike', 'tail'], heavy: ['tail', 'kiburst'] },
+  brute: { name: 'Brute Force', speed: 0.85, dmg: 1.35, lights: 4, fin: ['blowback', 'launch', 'spike', 'blowback'], heavy: ['heavy', 'spin'] },
+  emperor: { name: 'Emperor\'s Wrath', speed: 1.15, dmg: 1.25, lights: 5, fin: ['tail', 'kiburst', 'multi', 'spike', 'kiburst'], heavy: ['tail', 'kiburst'] },
+  ape: { name: 'Great Ape', speed: 1, dmg: 1, lights: 3, fin: ['blowback', 'spike', 'stomp'], heavy: ['stomp', 'heavy'] },
+};
+const LIGHT_POSES = ['punchR', 'punchL', 'kick', 'knee', 'punchR', 'kick'];
+// Heavy attacks & finishers. knock: up | back | down | stagger
+const FIN = {
+  launch: { pose: 'uppercut', dur: 0.42, at: 0.45, dmg: 420, knock: 'up', force: 36 },
+  blowback: { pose: 'spinKick', dur: 0.45, at: 0.5, dmg: 450, knock: 'back', force: 58 },
+  spike: { pose: 'smashA', pose2: 'smashB', dur: 0.5, at: 0.6, dmg: 480, knock: 'down', force: 62 },
+  kiburst: { pose: 'palm', dur: 0.45, at: 0.45, dmg: 520, knock: 'back', force: 50, ki: true },
+  multi: { pose: 'punchR', dur: 0.75, at: 0.08, dmg: 95, hits: 6, knock: 'back', force: 42 },
+  grab: { pose: 'throw', dur: 1.0, at: 0.2, dmg: 520, grab: true, knock: 'down', force: 58 },
+  tail: { pose: 'spinKick', dur: 0.45, at: 0.55, dmg: 460, knock: 'back', force: 52, spin: true, reach: 1.3 },
+  stretch: { pose: 'heavyHit', dur: 0.5, at: 0.5, dmg: 420, knock: 'back', force: 32, reach: 4.5, stretch: true },
+  heavy: { pose: 'heavyWind', pose2: 'heavyHit', dur: 0.5, at: 0.6, dmg: 380, knock: 'stagger', force: 12 },
+  spin: { pose: 'spinKick', dur: 0.45, at: 0.5, dmg: 350, knock: 'back', force: 26, spin: true },
+  stomp: { pose: 'smashA', pose2: 'smashB', dur: 0.8, at: 0.6, dmg: 800, stomp: true },
+  charged: { pose: 'heavyWind', pose2: 'heavyHit', dur: 0.45, at: 0.45, dmg: 950, knock: 'back', force: 75, unblock: true },
+};
+const BLASTS = {
+  orb: { cd: 0.13, speed: 58, dmg: 65, r: 0.35, homing: 2.2 },
+  rapid: { cd: 0.08, speed: 66, dmg: 48, r: 0.3, homing: 2.0 },
+  heavy: { cd: 0.2, speed: 55, dmg: 115, r: 0.55, homing: 2.0, boom: true },
+  spread: { cd: 0.24, speed: 55, dmg: 45, r: 0.32, homing: 1.6, n: 3 },
+  laser: { cd: 0.16, speed: 130, dmg: 85, r: 0.18, homing: 0.8 },
+  mouth: { cd: 0.35, speed: 58, dmg: 140, r: 1.4, homing: 2.2 },
+};
 const BLAST_COL = { goku: 0xfff08a, vegeta: 0xd9a0ff, piccolo: 0xfff27a, frieza: 0xff6ad8 };
 
 // ---------------- Fighter ----------------
@@ -101,9 +144,9 @@ class Fighter {
     this.m = this.human; this.rig = this.rigH; this.ape = null;
     this.obj = new THREE.Group(); this.obj.add(this.human.root); scene.add(this.obj);
     this.pos = this.obj.position; this.vel = V3();
-    this.maxHp = 10000; this.hp = this.maxHp; this.ki = 40; this.stun = 0; this.lastHitT = -9;
+    this.maxHp = 30000; this.hp = this.maxHp; this.ki = 40; this.stun = 0; this.lastHitT = -9;
     this.act = null; this.inv = 0; this.guardT = -9; this.blastCd = 0; this.hand = 0; this.poseO = null;
-    this.powBonus = 1; this.zenkai = false; this.apeT = 0; this.tailCut = false; this.exprT = 0; this.auraS = 0;
+    this.chaseT = 0; this.chaseN = 0; this.powBonus = 1; this.zenkai = false; this.apeT = 0; this.tailCut = false; this.exprT = 0; this.auraS = 0;
     this.intent = blankIntent(); this.ai = isPlayer ? null : { t: 0, plan: null, planT: 0, react: 0, hold: null, holdT: 0 };
   }
   get foe() { return G.fighters[this.isPlayer ? 1 : 0]; }
@@ -112,7 +155,9 @@ class Fighter {
   get hitR() { return this.isApe ? 4.2 : 0.75; }
   get reach() { return this.isApe ? 6 : 1.6; }
   get pow() { return this.form.pow * this.powBonus; }
-  get supers() { return this.isApe ? this.def.apeSupers : this.def.supers; }
+  get supers() { return this.form.supers; }
+  get style() { return STYLES[this.form.style] || STYLES.turtle; }
+  superId(i) { return i === 4 ? this.form.ult : this.form.supers[i]; }
   center(v = V3()) { return v.set(this.pos.x, this.pos.y + 1.15 * this.S, this.pos.z); }
   fwd() { return V3(Math.sin(this.obj.rotation.y), 0, Math.cos(this.obj.rotation.y)); }
   ground() { return arena.height(this.pos.x, this.pos.z); }
@@ -123,7 +168,7 @@ class Fighter {
     return v.addVectors(a, b).multiplyScalar(0.5);
   }
   pose(name, sp) { this.rig.set(name, sp); }
-  endAct() { if (this.act?.cleanup) this.act.cleanup(); this.act = null; this.m.root.rotation.set(0, 0, 0); this.obj.visible = true; }
+  endAct() { if (this.act?.cleanup) this.act.cleanup(); this.act = null; this.m.root.rotation.set(0, 0, 0); this.obj.visible = true; this.m.J.rFore.scale.set(1, 1, 1); }
 
   setForm(i, silent) {
     const f = this.def.forms[i]; if (!f || f.ape) return;
@@ -133,7 +178,7 @@ class Fighter {
   // ---------- per-frame ----------
   update(dt) {
     const foe = this.foe;
-    this.inv -= dt; this.blastCd -= dt; if (this.poseO) { this.poseO.t -= dt; if (this.poseO.t <= 0) this.poseO = null; }
+    this.inv -= dt; this.blastCd -= dt; this.chaseT -= dt; if (this.poseO) { this.poseO.t -= dt; if (this.poseO.t <= 0) this.poseO = null; }
     if (this.exprT > 0) { this.exprT -= dt; if (this.exprT <= 0) this.m.setExpression('neutral'); }
     const fighting = G.state === 'fight';
     if (fighting) {
@@ -164,7 +209,7 @@ class Fighter {
     const au = this.m.aura.material.uniforms; au.strength.value = this.auraS; au.time.value = G.time;
     this.m.aura.visible = this.auraS > 0.02;
     if (this.auraS > 0.3 && Math.random() < this.auraS * 0.8) fx.auraMotes(this.pos.clone().setY(this.pos.y + 0.2 * this.S), this.isApe ? 0xff4040 : this.form.aura, 0.8 * this.S);
-    if (this.form.spiky && Math.random() < 0.08) this.spark();
+    if (this.form.spiky && Math.random() < (this.form.ssj2 ? 0.35 : 0.08)) this.spark();
     this.rig.update(dt);
   }
   spark() { // SSJ lightning
@@ -181,6 +226,8 @@ class Fighter {
     if (I.revert && (this.formIdx > 0 || this.isApe)) { if (this.isApe) this.revertApe('manual'); else this.setForm(0); return; }
     if (I.super >= 0 && this.startSuper(I.super)) return;
     if (I.vanish && this.ki >= 10) return this.startVanish();
+    if (I.melee || I.heavy) { if (this.tryChase()) return; }
+    if (I.heavy) { this.act = { type: 'hcharge', t: 0 }; this.pose('heavyWind', 16); return; }
     if (I.melee) return this.startMelee();
     if (I.guard) { this.act = { type: 'guard', t: 0 }; this.guardT = G.time; return; }
     if (I.charge && this.ki < 100) { this.act = { type: 'charge', t: 0, snd: 0 }; sfx.charge(); return; }
@@ -209,22 +256,52 @@ class Fighter {
     if (I.boost && wish.lengthSq() > 0.01 && !this.isApe) fx.trail(this.center(), this.form.aura, 0.9, 0.2);
   }
   // ---------- actions ----------
+  tryChase() { // vanishing assault: follow up a knockback
+    const foe = this.foe;
+    if (!(this.chaseT > 0 && foe.act?.type === 'knock' && this.chaseN < 2 && this.ki >= 8)) return false;
+    this.ki -= 8; this.chaseN++; this.chaseT = 0;
+    const v = foe.act.v.clone(); foe.act = { type: 'hurt', t: 0, dur: 0.45 }; foe.vel.set(0, 0, 0);
+    fx.lines(this.center(), 0xffffff, 10, 3); sfx.vanish();
+    const off = v.lengthSq() > 1 ? v.normalize() : this.fwd();
+    this.pos.copy(foe.pos).addScaledVector(off, 1.6); this.pos.y = Math.max(this.pos.y, this.ground());
+    const d = flatDir(this.pos, foe.pos); this.obj.rotation.y = Math.atan2(d.x, d.z);
+    fx.lines(this.center(), 0xffffff, 12, 4); if (this.isPlayer) dmgNum(this.center(), 'CHASE!', 'info');
+    this.startFin(foe.pos.y - foe.ground() > 4 && this.chaseN === 1 ? 'spike' : 'blowback', {});
+    return true;
+  }
+  startFin(kind, o = {}) {
+    const F = FIN[kind]; this.act = { type: 'fin', kind, F, t: 0, hit: false, n: 0, chain: o.chain ?? -1, power: o.power || 0, queued: false };
+    this.pose(F.pose, 24); sfx.whoosh();
+    if (F.ki && this.ki >= 4) this.ki -= 4;
+  }
   startMelee() {
+    this.chaseN = 0;
     const d = this.center().distanceTo(this.foe.center());
     if (d > this.reach + this.foe.hitR + 0.8 && d < (this.isApe ? 30 : 45) && !this.isApe) { this.act = { type: 'rush', t: 0 }; sfx.whoosh(); return; }
     this.meleeStep(0);
   }
+  lights() {
+    if (this.isApe) return APE_STEPS;
+    const st = this.style, n = st.lights;
+    return Array.from({ length: n }, (_, i) => i < n - 1 ? { pose: LIGHT_POSES[i], dur: 0.24, at: 0.45, dmg: 170 } : { pose: 'smashA', pose2: 'smashB', dur: 0.5, at: 0.6, dmg: 360, knock: true });
+  }
   meleeStep(i) {
-    const s = (this.isApe ? APE_STEPS : STEPS)[i];
+    const s = this.lights()[i];
     this.act = { type: 'melee', i, s, t: 0, hit: false, queued: false }; this.pose(s.pose, 24); sfx.whoosh();
   }
   fireBlast() {
-    this.ki -= 1.5; this.blastCd = this.isApe ? 0.35 : 0.13; this.hand ^= 1;
-    this.poseO = { name: this.hand ? 'blastR' : 'blastL', t: 0.16 };
-    const from = V3(); (this.hand ? this.m.J.rHand : this.m.J.lHand).getWorldPosition(from);
+    const B = BLASTS[this.form.blast] || BLASTS.orb;
+    this.ki -= 1.5; this.blastCd = B.cd; this.hand ^= 1;
+    this.poseO = { name: this.form.blast === 'laser' ? 'point' : this.hand ? 'blastR' : 'blastL', t: 0.16 };
+    const from = V3(); (this.hand || this.form.blast === 'laser' ? this.m.J.rHand : this.m.J.lHand).getWorldPosition(from);
     if (this.isApe) this.handPos(from);
-    const dir = this.foe.center().sub(from).normalize();
-    spawnProj(this, from, dir, { speed: 58, dmg: (this.isApe ? 140 : 65) * this.pow, r: this.isApe ? 1.4 : 0.35, color: this.isApe ? 0xff90b0 : BLAST_COL[this.hero], homing: 2.2, kind: 'blast' });
+    const col = this.isApe ? 0xff90b0 : this.form.spiky ? 0xffe070 : BLAST_COL[this.hero];
+    const n = B.n || 1;
+    for (let i = 0; i < n; i++) {
+      const dir = this.foe.center().sub(from).normalize();
+      if (n > 1) dir.applyAxisAngle(V3(0, 1, 0), (i - (n - 1) / 2) * 0.25);
+      spawnProj(this, from, dir, { speed: B.speed, dmg: B.dmg * this.pow, r: B.r, color: col, homing: B.homing, kind: 'blast', boom: B.boom });
+    }
     sfx.ki();
   }
   startVanish() {
@@ -240,7 +317,7 @@ class Fighter {
   startTransform() {
     const nx = this.formIdx + 1, f = this.def.forms[nx];
     if (this.isApe || !f) return false;
-    if (f.ape) { const i = this.def.supers.indexOf('powerBall'); return i >= 0 && !this.tailCut && this.startSuper(i); }
+    if (f.ape) return !this.tailCut && this.startSuper('powerBall');
     if (this.ki < f.cost) { this.noKi(); return false; }
     this.ki -= f.cost; this.inv = 2.4;
     this.act = { type: 'transform', t: 0, to: nx, done: false }; this.m.aura.material.uniforms.color.value.set(f.aura);
@@ -250,13 +327,16 @@ class Fighter {
   }
   noKi() { if (this.isPlayer) dmgNum(this.center(), 'Not enough Ki', 'blk'); }
   startSuper(i) {
-    const id = this.supers[i], S = SUPERS[id]; if (!S) return false;
+    const id = typeof i === 'string' ? i : this.superId(i), S = SUPERS[id]; if (!S) return false;
     if (this.ki < S.cost) { this.noKi(); return false; }
     if (S.type === 'transform' && (this.isApe || this.tailCut)) return false;
     if (S.type === 'aoe' && id === 'stompQuake' && this.pos.y - this.ground() > 1) return false;
-    this.ki -= S.cost; superName(S.name, S.color);
+    this.ki -= S.cost; superName((S.ult ? 'ULTIMATE · ' : '') + S.name, S.color);
+    if (S.ult) { flash(0.5); shake(0.6); sfx.powerup(); if (S.type === 'beam' || S.type === 'ball') G.cine = { f: this, t: 0, dur: 1.1, mode: 'orbit' }; }
+    if (S.teleport) { const f = flatDir(this.foe.pos, this.pos), side = V3(-f.z, 0, f.x); fx.lines(this.center(), 0xffffff, 12, 3); sfx.vanish(); this.pos.copy(this.foe.pos).addScaledVector(side, 9).addScaledVector(f, 3); this.pos.y = Math.max(this.foe.pos.y, this.ground() + 1); fx.lines(this.center(), 0xffffff, 12, 3); }
     const bk = BARKS[this.hero][id]; if (bk) say(this, pick(bk), 2.4);
     this.act = { type: 'super', id, S, t: 0, phase: S.type === 'rush' ? 'dash' : 'charge', n: 0, tick: 0 };
+    if (S.selfDmg) { this.inv = 1.2; }
     if (S.type === 'transform') { G.cine = { f: this, t: 0, dur: 6.2, mode: 'ape' }; G.freeze = this; this.inv = 7; }
     if (S.type === 'ball') this.inv = 0; // vulnerable while gathering energy
     return true;
@@ -274,8 +354,10 @@ class Fighter {
         break;
       }
       case 'melee': {
-        const s = a.s, dur = s.dur / (this.isApe ? 1 : Math.sqrt(this.form.spd)), k = a.t / dur;
+        const s = a.s, dur = s.dur / (this.isApe ? 1 : Math.sqrt(this.form.spd) * this.style.speed), k = a.t / dur;
         if (I.melee && a.t > dur * 0.2) a.queued = true;
+        if (I.heavy && a.t > dur * 0.1) a.fin = true;
+        if (a.fin && a.hit) { const f = this.style.fin; this.startFin(f[Math.min(a.i, f.length - 1)]); break; }
         const d = foe.center().sub(this.center()), L = d.length();
         const want = this.reach + foe.hitR - 0.3;
         if (L > want && L < want + 5 && k < s.at) this.vel.copy(d.normalize().multiplyScalar(this.isApe ? 10 : 20)); else this.vel.multiplyScalar(0.8);
@@ -285,9 +367,19 @@ class Fighter {
           if (L < this.reach + foe.hitR + 0.5) this.strike(foe, s);
           else if (this.isApe && s.knock) { this.stompFx(); }
         }
-        if (k >= 1) { const steps = this.isApe ? APE_STEPS : STEPS; if (a.queued && a.i + 1 < steps.length) this.meleeStep(a.i + 1); else this.endAct(); }
+        if (k >= 1) { const steps = this.lights(); if (a.queued && a.i + 1 < steps.length) this.meleeStep(a.i + 1); else this.endAct(); }
         break;
       }
+      case 'hcharge': { // hold heavy = charged smash
+        this.pose('heavyWind', 16); this.vel.multiplyScalar(0.85);
+        if (a.t > 0.25) { const p = this.center().add(V3(rand(-2, 2), rand(-1.5, 2), rand(-2, 2)).multiplyScalar(this.S)); fx.glow.emit(p, this.center().sub(p).multiplyScalar(3), new THREE.Color(this.form.aura), 0.3, 0.05, 0.3); if (!a.snd) { a.snd = 1; sfx.charge(); } }
+        if (!I.heavyHold || a.t > 1.4) {
+          if (a.t < 0.25) this.startFin(this.style.heavy[0], { chain: 0 });
+          else { this.startFin('charged', { power: Math.min(1, a.t / 1.2) }); this.act.lunge = true; }
+        }
+        break;
+      }
+      case 'fin': this.runFin(a, dt, foe); break;
       case 'guard':
         this.pose('guard', 20); this.vel.multiplyScalar(0.85);
         if (!I.guard) this.endAct();
@@ -303,7 +395,7 @@ class Fighter {
         if (a.t > 0.14) { this.pos.copy(a.to); this.vel.set(0, 0, 0); this.obj.visible = true; fx.lines(this.center(), 0xffffff, 10, 3); this.act = null; }
         break;
       case 'hurt':
-        this.pose('hurt', 25); this.vel.multiplyScalar(0.9); if (a.t > a.dur) this.endAct();
+        this.pose('hurt', 25); this.vel.multiplyScalar(0.9); if (a.t > a.dur || (a.dur > 50 && a.t > 3)) this.endAct();
         break;
       case 'stunned':
         this.pose('hurt', 6); this.vel.multiplyScalar(0.9); this.m.J.head.rotation.z = Math.sin(G.time * 6) * 0.3;
@@ -359,11 +451,70 @@ class Fighter {
       case 'super': this.runSuper(a, dt, foe); break;
     }
   }
+  runFin(a, dt, foe) {
+    const F = a.F, I = this.intent, sp = this.isApe ? 1 : Math.sqrt(this.form.spd) * this.style.speed;
+    const dur = F.dur / sp, k = a.t / dur;
+    const d = foe.center().sub(this.center()), L = d.length(), reach = this.reach + (F.reach || 0) * this.S;
+    const want = reach + foe.hitR - 0.3;
+    const lungeSp = a.lunge ? 34 : this.isApe ? 10 : 20;
+    if (!a.hold && L > want && L < want + (a.lunge ? 12 : 5) && k < F.at) this.vel.copy(d.normalize().multiplyScalar(lungeSp)); else this.vel.multiplyScalar(0.8);
+    if (F.pose2 && k > 0.5) this.pose(F.pose2, 30);
+    if (F.spin) this.m.root.rotation.y = -Math.min(1, k / F.at) * Math.PI * 2;
+    if (F.stretch) this.m.J.rFore.scale.y = 1 + 3.5 * (k < F.at ? k / F.at : Math.max(0, 1 - (k - F.at) / (1 - F.at)));
+    if (I.heavy && a.chain === 0 && a.t > dur * 0.2) a.queued = true;
+    if (F.hits) { // flurry
+      const n = Math.floor(k / (0.8 / F.hits));
+      while (a.n < Math.min(n, F.hits)) {
+        a.n++; this.pose(a.n % 2 ? 'punchL' : 'punchR', 40);
+        if (L < reach + foe.hitR + 0.6) { const last = a.n === F.hits; this.finHit(foe, a, last ? F : { dmg: F.dmg, knock: null }); } else break;
+      }
+    } else if (F.grab) {
+      if (!a.hit && k >= F.at) {
+        a.hit = true;
+        if (L < reach + foe.hitR + 0.8 && foe.inv <= 0 && foe.act?.type !== 'ko') { a.hold = true; foe.endAct(); foe.act = { type: 'hurt', t: 0, dur: 99 }; if (this.isPlayer || foe.isPlayer) dmgNum(foe.center(), 'GRAB!', 'info'); }
+      }
+      if (a.hold) {
+        const tgt = this.pos.clone().addScaledVector(this.fwd(), 1.5).add(V3(0, 1.6 + k * 2, 0)); foe.pos.lerp(tgt, Math.min(1, dt * 8)); foe.vel.set(0, 0, 0);
+        this.pose(k < 0.7 ? 'raise' : 'throw', 20);
+        if (k > 0.75 && !a.slam) { a.slam = true; foe.act = null; this.finHit(foe, a, F); }
+      }
+    } else if (!a.hit && k >= F.at) {
+      a.hit = true;
+      if (F.stomp) { this.stompFx(); if (foe.pos.y - foe.ground() < 6 && foe.center().distanceTo(this.center().addScaledVector(this.fwd(), 5)) < 10) this.finHit(foe, a, { ...F, knock: 'up', force: 30 }); }
+      else if (L < reach + foe.hitR + 0.6) this.finHit(foe, a, F);
+      else if (F.ki) { fx.explosion(this.center().addScaledVector(this.fwd(), 1.5), this.form.aura, 1.5, 0.3); }
+    }
+    if (k >= 1) {
+      if (a.queued) { this.endAct(); this.startFin(this.style.heavy[1], { chain: 1 }); }
+      else this.endAct();
+    }
+  }
+  finHit(foe, a, F) {
+    const dir = flatDir(this.pos, foe.pos), air = foe.pos.y - foe.ground() > 3;
+    let kdir = null, kind = 'melee';
+    if (F.knock === 'up') kdir = dir.clone().multiplyScalar(0.15).setY(1);
+    else if (F.knock === 'back') kdir = dir.clone().setY(0.35);
+    else if (F.knock === 'down') kdir = dir.clone().multiplyScalar(0.35).setY(air ? -1 : 0.8);
+    if (kdir) { kdir.normalize(); kind = 'knock'; }
+    const power = 1 + (a.power || 0) * 0.8;
+    const dmg = F.dmg * this.pow * this.style.dmg * power;
+    const at = foe.center().lerp(this.center(), 0.3);
+    if (F.ki) { fx.explosion(at, this.form.aura, 1.6, 0.35); sfx.boom(false); }
+    if (F.unblock) { fx.shockwave(at, this.form.aura, 6, 0.4, false); if (this.pos.y - this.ground() < 3) arena.crater(foe.pos.x, foe.pos.z, 3 + a.power * 3, 1 + a.power); }
+    if (F.knock === 'down' && !air && foe.pos.y - foe.ground() < 1.5) { arena.crater(foe.pos.x, foe.pos.z, 3.5, 1.4); fx.dust(foe.pos.clone(), 20, 4); shake(1); }
+    const r = foe.takeHit(this, { dmg, kind: F.knock === 'stagger' ? 'melee' : kind, stun: kind === 'knock' ? 16 : 12, dir, kdir, force: (F.force || 40) * (this.isApe ? 1.2 : 1), heavy: true, guardBreak: true, unblock: !!F.unblock });
+    if (r === true && F.knock === 'stagger' && foe.act?.type === 'hurt') foe.act.dur = 0.65;
+    if (r === true && kind === 'knock') { this.chaseT = 1.1; }
+    if (r === true && this.style.lifesteal) this.hp = Math.min(this.maxHp, this.hp + dmg * this.style.lifesteal);
+  }
   strike(foe, s) {
     const dir = flatDir(this.pos, foe.pos);
     let kdir = null;
     if (s.knock) { kdir = dir.clone(); kdir.y = foe.pos.y - foe.ground() > 4 ? -1.1 : 0.45; kdir.normalize(); }
-    foe.takeHit(this, { dmg: s.dmg * this.pow, kind: s.knock ? 'knock' : 'melee', stun: s.knock ? 14 : 8, dir, kdir, force: this.isApe ? 60 : 52, heavy: !!s.knock });
+    const dmg = s.dmg * this.pow * (this.isApe ? 1 : this.style.dmg);
+    const r = foe.takeHit(this, { dmg, kind: s.knock ? 'knock' : 'melee', stun: s.knock ? 14 : 7, dir, kdir, force: this.isApe ? 60 : 48, heavy: !!s.knock });
+    if (r === true && s.knock) this.chaseT = 1.1;
+    if (r === true && this.style.lifesteal) this.hp = Math.min(this.maxHp, this.hp + dmg * this.style.lifesteal);
     if (this.isApe && s.knock) this.stompFx();
   }
   stompFx() {
@@ -375,8 +526,13 @@ class Fighter {
     const toAtt = flatDir(this.pos, att.pos), facing = this.fwd().dot(toAtt) > 0.1;
     const p = this.center().lerp(att.center(), this.isApe ? 0.25 : 0.4);
     if (h.kind === 'blast' || h.kind === 'beam' || h.kind === 'aoe') p.copy(h.at || this.center());
-    if (this.act?.type === 'guard' && facing && h.kind !== 'rush') {
+    if (this.act?.type === 'guard' && facing && h.kind !== 'rush' && !h.unblock) {
       if ((h.kind === 'melee' || h.kind === 'knock') && G.time - this.guardT < 0.25 && !att.isApe) { this.perfectCounter(att); return false; }
+      if (h.guardBreak) {
+        this.endAct(); this.act = { type: 'stunned', t: 0, dur: 0.9 }; this.hp -= h.dmg * 0.4; this.lastHitT = G.time;
+        fx.shockwave(p, 0xffe070, 4, 0.3, false); fx.sparks(p, 0xffe070, 20); sfx.hit(true); hitstop(0.08); shake(0.6);
+        dmgNum(p, 'GUARD BREAK!', 'info'); return 'broken';
+      }
       const dm = h.dmg * (h.kind === 'beam' || h.kind === 'aoe' ? 0.3 : 0.12); this.hp = Math.max(1, this.hp - dm); this.ki = Math.max(0, this.ki - 2);
       fx.sparks(p, 0x9fd8ff, 10); fx.flash(p, 0x9fd8ff, 1.5); sfx.block(); this.vel.addScaledVector(toAtt, -5);
       if (att.isPlayer || this.isPlayer) dmgNum(p, Math.round(dm), 'blk');
@@ -546,10 +702,12 @@ class Fighter {
       }
       case 'aoe': {
         const ape = this.isApe;
-        this.pose(a.t < 0.5 ? (ape ? 'smashA' : 'charge') : (ape ? 'smashB' : 'palm'), 14);
-        if (a.t < 0.5 && Math.random() < 0.7) fx.auraMotes(this.pos.clone(), S.color, this.S);
-        if (!a.done && a.t >= 0.5) {
-          a.done = true; const c = ape ? this.pos.clone().setY(this.ground() + 1) : this.center();
+        const ch = S.selfDmg ? 1.6 : 0.5;
+        this.pose(a.t < ch ? (ape ? 'smashA' : 'charge') : (ape ? 'smashB' : 'palm'), 14);
+        if (S.selfDmg && a.t < ch) { shake(0.4); fx.auraMotes(this.pos.clone(), 0xffffff, 2); }
+        if (a.t < ch && Math.random() < 0.7) fx.auraMotes(this.pos.clone(), S.color, this.S);
+        if (!a.done && a.t >= ch) {
+          a.done = true; if (S.selfDmg) { this.hp = Math.max(1, this.hp - this.maxHp * S.selfDmg); flash(1); G.timeScale = 0.4; setTimeout(() => { if (G.state === 'fight') G.timeScale = 1; }, 900); } const c = ape ? this.pos.clone().setY(this.ground() + 1) : this.center();
           const R = S.radius;
           fx.explosion(c, S.color, ape ? 3 : R * 0.55, 0.8); flash(0.4); shake(1.3); sfx.boom(true);
           for (let i = 0; i < 3; i++) setTimeout(() => fx.shockwave(c.clone().setY(c.y + 0.3), S.color, R * 1.4, 0.6), i * 120);
@@ -560,7 +718,7 @@ class Fighter {
           if (d < R + foe.hitR && (!ape || grounded)) foe.takeHit(this, { dmg: S.dmg * this.pow, kind: 'knock', stun: 20, kdir: fcn.clone().sub(c).setY(1).normalize(), force: 48, heavy: true, at: fcn });
           if (ape) fx.dust(c, 50, 14);
         }
-        if (a.t > 1.1) this.endAct();
+        if (a.t > ch + 0.6) this.endAct();
         break;
       }
       case 'barrage': {
@@ -570,10 +728,10 @@ class Fighter {
           a.tick = 0.065; a.n++; this.hand ^= 1; this.pose(this.hand ? 'blastR' : 'blastL', 40);
           const from = V3(); (this.hand ? this.m.J.rHand : this.m.J.lHand).getWorldPosition(from);
           const t = foe.center().add(V3(rand(-3, 3), rand(-2, 3), rand(-3, 3)));
-          spawnProj(this, from, t.sub(from).normalize(), { speed: 70, dmg: S.dmg * this.pow / S.count, r: 0.45, color: S.color, homing: 1.2, kind: 'blast', boom: true });
+          spawnProj(this, from, t.sub(from).normalize(), { speed: S.laser ? 130 : 70, dmg: S.dmg * this.pow / S.count, r: S.laser ? 0.2 : 0.45, color: S.color, homing: S.laser ? 0.5 : 1.2, kind: 'blast', boom: !S.laser });
           sfx.ki();
         }
-        if (a.n >= S.count && a.t > 2.3) this.endAct();
+        if (a.n >= S.count && a.t > S.count * 0.065 + 0.6) this.endAct();
         break;
       }
       case 'disc': {
@@ -591,17 +749,45 @@ class Fighter {
       }
       case 'ball': {
         if (a.phase === 'charge') {
-          this.pose('raise', 8);
+          const hand = S.pose === 'blastR';
+          this.pose(S.pose || 'raise', 8);
           if (!a.orb) a.orb = fx.orb(S.color, 1);
           const k = Math.min(1, a.t / S.charge), size = 0.3 + k * S.size;
-          const p = this.center().add(V3(0, 2 + size, 0)); a.orb.position.copy(p); a.orb.scale.setScalar(size);
-          for (let i = 0; i < 3; i++) { const q = p.clone().add(V3(rand(-40, 40), rand(-10, 40), rand(-40, 40))); fx.glow.emit(q, p.clone().sub(q).multiplyScalar(1.3), col, 0.6, 0.2, 0.75); }
+          const p = hand ? this.m.J.rHand.getWorldPosition(V3()).addScaledVector(this.fwd(), 0.4 + size) : this.center().add(V3(0, 2 + size, 0)); a.orb.position.copy(p); a.orb.scale.setScalar(size);
+          for (let i = 0; i < (hand ? 1 : 3); i++) { const q = p.clone().add(V3(rand(-40, 40), rand(-10, 40), rand(-40, 40))); fx.glow.emit(q, p.clone().sub(q).multiplyScalar(1.3), col, 0.6, 0.2, 0.75); }
           if (a.t > S.charge) {
-            a.phase = 'throw'; a.t = 0; this.pose('throw', 20); const orb = a.orb; a.orb = null;
+            a.phase = 'throw'; a.t = 0; this.pose(hand ? 'blastR' : 'throw', 20); const orb = a.orb; a.orb = null;
             spawnProj(this, p, foe.center().sub(p).normalize(), { speed: S.speed || 24, dmg: S.dmg * this.pow, r: size * 0.7, color: S.color, homing: 0.9, kind: 'ball', mesh: orb, life: 8 });
             sfx.whoosh(); shake(0.5);
           }
         } else if (a.t > 0.6) this.endAct();
+        break;
+      }
+      case 'grab': {
+        if (a.phase === 'charge') {
+          this.pose(S.tele ? 'point' : 'heavyHit', 20);
+          if (!S.tele) this.m.J.rFore.scale.y = 1 + Math.min(1, a.t / 0.3) * 6;
+          if (S.tele && Math.random() < 0.6) fx.trail(this.handPos(), S.color, 0.6, 0.2);
+          if (a.t > 0.35) {
+            const d = foe.center().distanceTo(this.center());
+            if (d < S.range + foe.hitR && foe.inv <= 0 && foe.act?.type !== 'guard' && foe.act?.type !== 'ko' && !foe.isApe) {
+              a.phase = 'hold'; a.t = 0; foe.endAct(); foe.act = { type: 'hurt', t: 0, dur: 99 }; a.from = foe.pos.clone();
+              dmgNum(foe.center(), S.tele ? 'SEIZED!' : 'CAUGHT!', 'info'); this.m.J.rFore.scale.y = 1;
+            } else { if (foe.isApe) dmgNum(foe.center(), 'TOO BIG!', 'blk'); this.endAct(); }
+          }
+        } else if (a.phase === 'hold') {
+          foe.vel.set(0, 0, 0);
+          const tgt = S.tele ? a.from.clone().add(V3(Math.sin(a.t * 9) * 0.6, 6 + a.t * 3, 0)) : this.pos.clone().addScaledVector(this.fwd(), 2).add(V3(0, 2.5, 0));
+          foe.pos.lerp(tgt, Math.min(1, dt * 5)); this.pose(S.tele ? 'raise' : 'throw', 14);
+          if (Math.random() < 0.7) fx.sparks(foe.center(), S.color, 3, 8);
+          a.tick -= dt;
+          if (a.tick <= 0) { a.tick = 0.25; foe.act = null; foe.takeHit(this, { dmg: S.dmg * this.pow * 0.1, kind: 'rush', stun: 2 }); if (foe.act) foe.act.dur = 99; else { this.endAct(); break; } }
+          if (a.t > 1.1) {
+            foe.act = null; this.pose('smashB', 30);
+            foe.takeHit(this, { dmg: S.dmg * this.pow * 0.6, kind: 'knock', kdir: V3(0, -1, 0).addScaledVector(this.fwd(), 0.3).normalize(), force: 70, heavy: true, stun: 20, unblock: true });
+            this.chaseT = 1.1; this.endAct();
+          }
+        }
         break;
       }
       case 'roar': {
@@ -705,7 +891,7 @@ function updateClash(dt) {
   if (c.a.act?.type !== 'super' || c.b.act?.type !== 'super') { endClash(); return; }
   c.t += dt;
   const pl = c.a.isPlayer ? c.a : c.b.isPlayer ? c.b : null;
-  const push = (f) => (f === pl ? (pressed.has('j') || pressed.has('k') ? 0.055 : 0) : dt * [0.28, 0.42, 0.55][G.diff]) * (f.pow / 1.3);
+  const push = (f) => (f === pl ? (pressed.has('j') || pressed.has('k') || pressed.has('u') ? 0.055 : 0) : dt * [0.28, 0.42, 0.55][G.diff]) * (f.pow / 1.3);
   c.bal += push(c.a) - push(c.b);
   const pa = c.a.handPos(), pb = c.b.handPos();
   c.point.copy(pa).lerp(pb, clamp(0.5 + c.bal * 0.45, 0.05, 0.95));
@@ -741,10 +927,14 @@ function aiThink(f, dt) {
   const fa = foe.act;
   const threat = threatProj || (fa && ((fa.type === 'melee' && d < 5) || fa.type === 'rush' || (fa.type === 'super' && (fa.phase === 'fire' || fa.phase === 'dash' || fa.phase === 'throw'))));
   // continue hold
+  if (f.chaseT > 0 && foe.act?.type === 'knock' && !f.act && Math.random() < [0.05, 0.12, 0.2][D]) { I.melee = true; return; }
   if (ai.hold && ai.holdT > 0) { Object.assign(I, ai.hold); if (f.act?.type === 'melee') I.melee = Math.random() < [0.6, 0.8, 0.95][D]; return; }
   ai.hold = null;
   if (f.act) {
-    if (f.act.type === 'melee') I.melee = Math.random() < [0.55, 0.8, 0.95][D];
+    if (f.act.type === 'melee') { I.melee = Math.random() < [0.55, 0.8, 0.95][D]; if (f.act.i >= 1 && Math.random() < [0.02, 0.05, 0.08][D]) I.heavy = true; }
+    if (f.act.type === 'fin' && f.act.chain === 0 && Math.random() < 0.05) I.heavy = true;
+    if (f.act.type === 'hcharge') I.heavyHold = f.act.t < (ai.chargeFor || 0);
+    if (f.chaseT > 0 && foe.act?.type === 'knock' && Math.random() < [0.03, 0.08, 0.15][D]) { f.act = null; I.melee = true; }
     if (f.act.type === 'knock' && Math.random() < [0.01, 0.03, 0.08][D]) I.recover = true;
     if (f.act.type === 'down' && Math.random() < 0.02 * (D + 1)) I.recover = true;
     return;
@@ -770,7 +960,8 @@ function aiThink(f, dt) {
     && !(o.S.type === 'disc' && !foe.isApe && Math.random() < 0.6) && !(o.S.type === 'ball' && d < 15));
   const discI = f.supers.findIndex((id) => SUPERS[id].type === 'disc');
   if (!f.isApe && foe.isApe && discI >= 0 && f.ki >= 30 && Math.random() < 0.3) { I.super = discI; return; }
-  if (opts.length && Math.random() < [0.18, 0.28, 0.38][D] + (f.ki > 80 ? 0.2 : 0)) { I.super = pick(opts).i; return; }
+  if (f.ki >= 100 && d < 45 && Math.random() < 0.35) { I.super = 4; return; }
+  if (opts.length && Math.random() < [0.14, 0.22, 0.3][D] + (f.ki > 80 ? 0.15 : 0)) { I.super = pick(opts).i; return; }
   if (f.ki < 25 && d > 20 && Math.random() < 0.6) { ai.plan = { charge: true }; ai.t = rand(0.8, 1.6); I.charge = true; return; }
   // offense / movement
   const r = Math.random();
@@ -779,7 +970,8 @@ function aiThink(f, dt) {
     if (r < 0.35) { ai.plan = { blast: true, fwd: 0.3 }; ai.t = 0.8; return; }
     ai.plan = { fwd: 1, up: foe.pos.y - f.pos.y > 8 && Math.random() < 0.3 ? 1 : 0 }; return;
   }
-  if (d < 3.5) { if (r < 0.75) I.melee = true; else ai.plan = { fwd: -1, side: rand(-1, 1) }; return; }
+  if (d < 4 && foe.act?.type === 'guard' && r < 0.6) { I.heavy = true; return; }
+  if (d < 3.5) { if (r < 0.55) I.melee = true; else if (r < 0.72) { I.heavy = true; ai.chargeFor = 0; } else if (r < 0.8) { I.heavy = true; ai.chargeFor = rand(0.5, 1.2); } else ai.plan = { fwd: -1, side: rand(-1, 1) }; return; }
   if (d < 40 && r < 0.5) { I.melee = true; return; }
   if (r < 0.75) { ai.plan = { blast: true, side: Math.random() < 0.5 ? 1 : -1, fwd: rand(-0.3, 0.5) }; ai.t = rand(0.5, 1.1); return; }
   ai.plan = { fwd: d > 12 ? 1 : 0, side: rand(-1, 1), boost: d > 30 };
@@ -792,10 +984,10 @@ function playerIntent(f) {
   I.side = (keys.has('d') ? 1 : 0) - (keys.has('a') ? 1 : 0);
   I.up = (keys.has(' ') ? 1 : 0) - (keys.has('c') || keys.has('control') ? 1 : 0);
   I.boost = keys.has('shift');
-  I.melee = pressed.has('j'); I.blast = keys.has('k'); I.guard = keys.has('l'); I.charge = keys.has('i');
+  I.melee = pressed.has('j'); I.heavy = pressed.has('u'); I.heavyHold = keys.has('u'); I.blast = keys.has('k'); I.guard = keys.has('l'); I.charge = keys.has('i');
   I.vanish = pressed.has('q'); I.transform = pressed.has('t'); I.revert = pressed.has('r'); I.recover = pressed.has(' ');
-  for (const n of ['1', '2', '3', '4']) if (pressed.has(n)) I.super = +n - 1;
-  if (G.clash) { I.melee = false; I.blast = false; }
+  for (const n of ['1', '2', '3', '4', '5']) if (pressed.has(n)) I.super = +n - 1;
+  if (G.clash) { I.melee = false; I.blast = false; I.heavy = false; }
 }
 
 // ---------------- camera ----------------
@@ -848,17 +1040,17 @@ function updateHUD(dt) {
   $('pHp').style.width = pct(p); $('pHpLag').style.width = pct(p); $('pHpNum').textContent = Math.ceil(p.hp);
   $('pKi').style.width = p.ki + '%'; $('pKiNum').textContent = Math.floor(p.ki);
   // enemy bar shows layered segments like Kakarot
-  const seg = e.maxHp / 3, layers = Math.max(0, Math.ceil(e.hp / seg)), inSeg = e.hp - (layers - 1) * seg;
+  const seg = e.maxHp / 6, layers = Math.max(0, Math.ceil(e.hp / seg)), inSeg = e.hp - (layers - 1) * seg;
   $('eHp').style.width = (layers ? inSeg / seg * 100 : 0) + '%'; $('eHpLag').style.width = $('eHp').style.width;
   $('eLayers').textContent = 'x' + layers; $('eKi').style.width = e.ki + '%'; $('eStun').style.width = Math.min(100, e.stun) + '%';
   setPic($('pPic'), p); setPic($('ePic'), e);
   $('formTag').textContent = p.isApe ? `GREAT APE ${Math.ceil(p.apeT)}s` : p.form.name.toUpperCase();
   $('eFormTag').textContent = e.isApe ? `GREAT APE ${Math.ceil(e.apeT)}s` : e.form.name.toUpperCase();
   const nx = p.def.forms[p.formIdx + 1];
-  const k = p.supers.join() + '|' + p.formIdx + '|' + Math.floor(p.ki / 5) + p.isApe + p.tailCut;
+  const k = p.supers.join() + p.form.ult + '|' + p.formIdx + '|' + Math.floor(p.ki / 5) + p.isApe + p.tailCut;
   if (k !== cmdKey) {
     cmdKey = k;
-    let h = p.supers.map((id, i) => { const S = SUPERS[id]; return `<div class="cmd-item ${p.ki < S.cost || (S.type === 'transform' && p.tailCut) ? 'off' : ''}"><kbd>${i + 1}</kbd>${S.name}<span class="cost">${S.cost} KI</span></div>`; }).join('');
+    let h = `<div class="cmd-style">${p.style.name}</div>` + [...p.supers, p.form.ult].map((id, i) => { const S = SUPERS[id]; return `<div class="cmd-item ${S.ult ? 'ult' : ''} ${p.ki < S.cost ? 'off' : ''}"><kbd>${i + 1}</kbd>${S.name}<span class="cost">${S.ult ? 'ULT' : S.cost + ' KI'}</span></div>`; }).join('');
     if (nx && !p.isApe && !(nx.ape && p.tailCut)) h += `<div class="cmd-item trans ${p.ki < nx.cost ? 'off' : ''}"><kbd>T</kbd>${nx.name}<span class="cost">${nx.cost} KI</span></div>`;
     if (p.formIdx > 0) h += `<div class="cmd-item trans"><kbd>R</kbd>Revert to Base</div>`;
     $('cmdList').innerHTML = h;

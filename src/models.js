@@ -32,7 +32,7 @@ const limb = (rt, rb, len, seg = 12) => { const c = new THREE.CylinderGeometry(r
 const sph = (r, w = 16, h = 12) => new THREE.SphereGeometry(r, w, h);
 
 // ---------- face texture ----------
-function drawFace(ctx, hero, expr, skin, iris, ape) {
+function drawFace(ctx, hero, expr, skin, iris, ape, o = {}) {
   const W = 256; ctx.fillStyle = skin; ctx.fillRect(0, 0, W, W);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   if (ape) {
@@ -51,11 +51,12 @@ function drawFace(ctx, hero, expr, skin, iris, ape) {
   if (hero === 'frieza') { ctx.fillStyle = '#8a3cc4'; for (const q of [-1, 1]) { ctx.beginPath(); ctx.moveTo(c + q * 70, 150); ctx.lineTo(c + q * 58, 196); ctx.lineTo(c + q * 66, 150); ctx.fill(); } }
   if (hero === 'piccolo') { ctx.fillStyle = 'rgba(20,70,10,0.35)'; ctx.fillRect(40, 60, 176, 22); }
   for (const s of [-1, 1]) {
-    ctx.fillStyle = '#111'; ctx.beginPath(); // brows (thick, anime)
+    if (!o.noBrow) { ctx.fillStyle = '#111'; ctx.beginPath(); // brows (thick, anime)
     if (expr === 'hurt') { ctx.moveTo(c + s * 12, 80); ctx.lineTo(c + s * 62, 92); ctx.lineTo(c + s * 62, 102); ctx.lineTo(c + s * 12, 90); }
     else if (ang) { ctx.moveTo(c + s * 8, 104); ctx.lineTo(c + s * 66, 76); ctx.lineTo(c + s * 68, 88); ctx.lineTo(c + s * 12, 114); }
     else { ctx.moveTo(c + s * 10, 92); ctx.lineTo(c + s * 64, 82); ctx.lineTo(c + s * 66, 93); ctx.lineTo(c + s * 10, 102); }
-    ctx.fill();
+    ctx.fill(); }
+    else { ctx.fillStyle = 'rgba(90,50,30,0.35)'; ctx.fillRect(c + s * 60 - (s > 0 ? 50 : 0), 96, 50, 6); }
     const h = sharp ? 18 : 24;
     if (expr === 'hurt') { ctx.lineWidth = 7; ctx.strokeStyle = '#111'; ctx.beginPath(); ctx.moveTo(c + s * 16, ey + 4); ctx.lineTo(c + s * 60, ey - 2); ctx.stroke(); continue; }
     // sclera: sharp outer corner, flat top lash line
@@ -72,6 +73,7 @@ function drawFace(ctx, hero, expr, skin, iris, ape) {
     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ix + 4, iy - 4, 3.5, 0, 7); ctx.fill();
     ctx.restore();
   }
+  if (o.majin) { ctx.strokeStyle = '#c0101a'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(108, 70); ctx.lineTo(114, 40); ctx.lineTo(128, 60); ctx.lineTo(142, 40); ctx.lineTo(148, 70); ctx.stroke(); }
   // nose
   ctx.strokeStyle = '#8a5a3a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(131, 142); ctx.lineTo(123, 162); ctx.lineTo(132, 163); ctx.stroke();
   // mouth
@@ -113,6 +115,13 @@ function buildHair(head, hero, spiky, mat, r) {
       [-80, 45, -95, 20, 0.36, 0.1], [-100, 20, -110, -5, 0.38, 0.1], [-95, 65, -100, 45, 0.3, 0.09],
       [140, 40, 150, 10, 0.4, 0.11], [-140, 40, -150, 10, 0.4, 0.11], [180, 30, 180, -10, 0.42, 0.12], [160, 65, 165, 35, 0.38, 0.1], [-160, 65, -165, 35, 0.38, 0.1],
       [120, 0, 130, -35, 0.3, 0.09], [-120, 0, -130, -35, 0.3, 0.09], [180, -10, 180, -45, 0.28, 0.09],
+    ]) spike(grp, mat, r, az * D, el * D, daz * D, del * D, len, rad);
+  } else if (hero === 'goku3') {
+    for (const [az, el, daz, del, len, rad] of [
+      [0, 60, 10, -40, 0.14, 0.05], [0, 75, 0, 60, 0.3, 0.1], [40, 70, 50, 50, 0.3, 0.1], [-40, 70, -50, 50, 0.3, 0.1],
+      [90, 50, 110, -40, 0.7, 0.12], [-90, 50, -110, -40, 0.7, 0.12], [140, 55, 160, -60, 1.0, 0.14], [-140, 55, -160, -60, 1.0, 0.14],
+      [180, 50, 180, -70, 1.2, 0.16], [160, 20, 165, -75, 1.1, 0.14], [-160, 20, -165, -75, 1.1, 0.14], [120, 20, 130, -65, 0.9, 0.12], [-120, 20, -130, -65, 0.9, 0.12],
+      [180, 0, 180, -80, 1.0, 0.14], [100, 0, 115, -70, 0.7, 0.1], [-100, 0, -115, -70, 0.7, 0.1],
     ]) spike(grp, mat, r, az * D, el * D, daz * D, del * D, len, rad);
   } else if (hero === 'goku') {
     for (const [az, el, daz, del, len, rad] of [
@@ -213,6 +222,7 @@ export function buildFighter(def, form) {
   face.scale.set(0.9, 1.08, 0.95); J.head.add(face);
   const ALIEN = hero === 'piccolo' || hero === 'frieza';
   const hairs = ALIEN ? { normal: g('h', J.head), spiky: g('h2', J.head) } : { normal: buildHair(J.head, hero, false, hairMat, R), spiky: buildHair(J.head, hero, true, hairMat, R) };
+  if (hero === 'goku' && def.forms.some((f) => f.long)) hairs.long = buildHair(J.head, 'goku3', true, hairMat, R);
   let onForm = null;
   if (ALIEN) { ears.forEach((e) => { e.visible = false; }); onForm = buildAlien(hero, J, M, skin, pal, R, root); } else {
 
@@ -288,11 +298,12 @@ export function buildFighter(def, form) {
     setExpression(e) {
       if (e === this.expr) return; this.expr = e;
       const skinHex = '#' + skin.color.getHexString();
-      drawFace(faceCanvas.getContext('2d'), hero, e, skinHex, this.iris, false); faceTex.needsUpdate = true;
+      drawFace(faceCanvas.getContext('2d'), hero, e, skinHex, this.iris, false, this.faceOpts || {}); faceTex.needsUpdate = true;
     },
     setForm(f) {
       hairMat.userData.base.set(f.hair ?? 0x15161c); hairMat.color.copy(hairMat.userData.base);
-      hairs.normal.visible = !f.spiky; hairs.spiky.visible = !!f.spiky;
+      hairs.normal.visible = !f.spiky; hairs.spiky.visible = !!f.spiky && !f.long; if (hairs.long) hairs.long.visible = !!f.long;
+      this.faceOpts = { noBrow: !!f.noBrow, majin: !!f.majin };
       this.iris = f.eyes ? '#' + f.eyes.toString(16).padStart(6, '0') : '#221a14';
       this.tint = f.tint ? new THREE.Color(f.tint) : null;
       for (const m of mats) { m.color.copy(m.userData.base); if (this.tint && m !== hairMat) m.color.lerp(this.tint, 0.35); }
@@ -384,6 +395,10 @@ export const POSES = {
   crossed: { hips: Z, spine: [-0.05, 0, 0], head: [-0.2, 0.3, 0], lArm: [-0.55, 0.5, -0.3], lFore: [-1.95, 0.8, 0], rArm: [-0.55, -0.5, 0.3], rFore: [-1.95, -0.8, 0], lLeg: [0, 0, 0.1], lShin: [0.05, 0, 0], rLeg: [0, 0, -0.1], rShin: [0.05, 0, 0] },
   sbc: { hips: Z, spine: [-0.1, 0.3, 0], head: [0.05, -0.3, 0], lArm: [0.1, 0, 0.3], lFore: [-0.6, 0, 0], rArm: [-2.2, 0.3, 0.6], rFore: [-2.3, 0, 0], lLeg: [-0.3, 0, 0.3], lShin: [0.5, 0, 0], rLeg: [0.2, 0, -0.3], rShin: [0.4, 0, 0] },
   point: { hips: [0, 0.3, 0], spine: [0.05, 0.4, 0], head: [0, -0.4, 0], lArm: [0.1, 0, 0.25], lFore: [-0.5, 0, 0], rArm: [-1.55, -0.4, 0], rFore: [0, 0, 0], lLeg: [-0.4, 0, 0.2], lShin: [0.7, 0, 0], rLeg: [0.2, 0, -0.1], rShin: [0.5, 0, 0] },
+  heavyWind: { hips: [0, -0.5, 0], spine: [-0.1, -0.8, 0], head: [0, 0.7, 0], lArm: [-1.2, 0, 0.3], lFore: [-0.8, 0, 0], rArm: [0.6, 0, -0.6], rFore: [-2.0, 0, 0], lLeg: [-0.6, 0, 0.2], lShin: [0.8, 0, 0], rLeg: [0.3, 0, -0.2], rShin: [0.6, 0, 0] },
+  heavyHit: { hips: [0.2, 0.5, 0], spine: [0.3, 0.8, 0], head: [0, -0.7, 0], lArm: [0.3, 0, 0.6], lFore: [-1.2, 0, 0], rArm: [-1.6, -0.6, -0.1], rFore: [0, 0, 0], lLeg: [-0.7, 0, 0.1], lShin: [0.5, 0, 0], rLeg: [0.6, 0, 0], rShin: [0.2, 0, 0] },
+  uppercut: { hips: [-0.3, 0.3, 0], spine: [-0.4, 0.4, 0], head: [0.3, -0.3, 0], lArm: [-0.4, 0, 0.4], lFore: [-1.6, 0, 0], rArm: [-2.9, -0.2, -0.3], rFore: [-0.3, 0, 0], lLeg: [-1.2, 0, 0.1], lShin: [1.6, 0, 0], rLeg: [0.4, 0, 0], rShin: [0.3, 0, 0] },
+  spinKick: { hips: [-0.4, 1.2, -0.5], spine: [-0.2, 0.4, 0], head: [0.2, -1.2, 0], lArm: [-0.2, 0, 1.2], lFore: [-0.8, 0, 0], rArm: [-0.2, 0, -1.2], rFore: [-0.8, 0, 0], lLeg: [0.4, 0, 0.3], lShin: [0.8, 0, 0], rLeg: [-1.6, 0, -1.0], rShin: [0.05, 0, 0] },
   apeIdle: { hips: [0.2, 0, 0], spine: [0.3, 0, 0], head: [-0.25, 0, 0], lArm: [-0.25, 0, 0.35], lFore: [-0.5, 0, 0], rArm: [-0.25, 0, -0.35], rFore: [-0.5, 0, 0], lLeg: [-0.45, 0, 0.1], lShin: [0.6, 0, 0], rLeg: [-0.45, 0, -0.1], rShin: [0.6, 0, 0] },
   down: { hips: [-1.45, 0, 0], spine: [0.1, 0, 0], head: [0.3, 0.4, 0], lArm: [0.1, 0, 1.2], lFore: [-0.3, 0, 0], rArm: [0.1, 0, -1.3], rFore: [-0.2, 0, 0], lLeg: [0.1, 0, 0.3], lShin: [0.2, 0, 0], rLeg: [-0.4, 0, -0.2], rShin: [0.9, 0, 0] },
 };
@@ -433,7 +448,7 @@ function buildAlien(hero, J, M, skin, pal, R, root) {
       part(limb(0.14, 0.12, 0.52), gi, L); part(limb(0.12, 0.08, 0.36), gi, S);
       part(new THREE.BoxGeometry(0.13, 0.12, 0.28), shoe, S, [0, -0.46, 0.05]);
     }
-    return (f) => { turban.visible = f.style === 'cape'; capeG.visible = f.style === 'cape'; ant.visible = f.style !== 'cape'; };
+    return (f) => { turban.visible = f.look === 'cape'; capeG.visible = f.look === 'cape'; ant.visible = f.look !== 'cape'; };
   }
   // Frieza
   const gem = M(pal.gem), horn = M(pal.horn), armor = M(pal.armor), pad = M(pal.pad), suit = M(pal.suit);
@@ -468,7 +483,7 @@ function buildAlien(hero, J, M, skin, pal, R, root) {
   const tail = g('ftail', J.hips); tail.position.set(0, -0.05, -0.15); let prev = tail;
   for (let i = 0; i < 7; i++) { const seg = g('ft' + i, prev, i ? [0, -0.17, 0] : [0, 0, 0]); seg.rotation.x = i ? 0.28 : 2.3; part(limb(0.07 - i * 0.007, 0.06 - i * 0.007, 0.18), i === 6 ? gem : skin, seg); prev = seg; }
   return (f) => {
-    const st = f.style;
+    const st = f.look;
     horns1.visible = st === 'first'; horns2.visible = st === 'second'; armorG.visible = st === 'first';
     dome.scale.setScalar(st === 'second' ? 1.12 : 1); gemParts.forEach((m) => { m.visible = st === 'final' || st === 'full'; });
     shorts.visible = st === 'first';
