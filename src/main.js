@@ -10,6 +10,7 @@ import { FX, GLOW } from './fx.js';
 import { portraitURL } from './portraits.js';
 import { initAudio, sfx } from './audio.js';
 
+const SS = { getItem: (k) => { try { return sessionStorage.getItem(k); } catch { return null; } }, setItem: (k, v) => { try { sessionStorage.setItem(k, v); } catch {} }, removeItem: (k) => { try { sessionStorage.removeItem(k); } catch {} } };
 const $ = (id) => document.getElementById(id);
 const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -871,7 +872,7 @@ function buildCards(step) {
   }
 }
 function startMatch(pid, eid, diff) {
-  sessionStorage.setItem('match', JSON.stringify({ pid, eid, diff }));
+  SS.setItem('match', JSON.stringify({ pid, eid, diff }));
   if (G.fighters.length) { location.reload(); return; }
   G.diff = diff;
   for (const s of ['title', 'select', 'result', 'pause']) $(s).classList.add('hidden');
@@ -908,7 +909,7 @@ function togglePause() {
 $('startBtn').onclick = () => { initAudio(); sfx.ui(); $('title').classList.add('hidden'); $('select').classList.remove('hidden'); buildCards(0); };
 $('backBtn').onclick = () => { $('select').classList.add('hidden'); $('title').classList.remove('hidden'); };
 $('resumeBtn').onclick = togglePause;
-$('quitBtn').onclick = $('selBtn').onclick = () => { sessionStorage.removeItem('match'); sessionStorage.setItem('goSelect', '1'); location.reload(); };
+$('quitBtn').onclick = $('selBtn').onclick = () => { SS.removeItem('match'); SS.setItem('goSelect', '1'); location.reload(); };
 $('rematchBtn').onclick = () => location.reload();
 addEventListener('keydown', (e) => { if (G.state === 'intro' && performance.now() - G.lineAt > 350 && (e.key === 'Enter' || e.key === ' ')) nextLine(); });
 addEventListener('click', () => { if (G.state === 'intro' && performance.now() - G.lineAt > 350) nextLine(); });
@@ -945,6 +946,6 @@ $('loading').classList.add('hidden');
 requestAnimationFrame(frame);
 
 // auto-resume rematch / go to select
-const saved = sessionStorage.getItem('match');
+const saved = SS.getItem('match');
 if (saved) { const m = JSON.parse(saved); $('title').classList.add('hidden'); addEventListener('pointerdown', initAudio, { once: true }); addEventListener('keydown', initAudio, { once: true }); startMatch(m.pid, m.eid, m.diff); }
-else if (sessionStorage.getItem('goSelect')) { sessionStorage.removeItem('goSelect'); $('title').classList.add('hidden'); $('select').classList.remove('hidden'); buildCards(0); addEventListener('pointerdown', initAudio, { once: true }); }
+else if (SS.getItem('goSelect')) { SS.removeItem('goSelect'); $('title').classList.add('hidden'); $('select').classList.remove('hidden'); buildCards(0); addEventListener('pointerdown', initAudio, { once: true }); }
