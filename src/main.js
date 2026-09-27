@@ -90,7 +90,7 @@ const APE_STEPS = [
   { pose: 'punchL', dur: 0.45, at: 0.5, dmg: 480 },
   { pose: 'smashA', pose2: 'smashB', dur: 0.75, at: 0.62, dmg: 900, knock: true },
 ];
-const BLAST_COL = { goku: 0xfff08a, vegeta: 0xd9a0ff };
+const BLAST_COL = { goku: 0xfff08a, vegeta: 0xd9a0ff, piccolo: 0xfff27a, frieza: 0xff6ad8 };
 
 // ---------------- Fighter ----------------
 class Fighter {
@@ -119,6 +119,7 @@ class Fighter {
   handPos(v = V3()) {
     if (this.isApe) { this.m.J.jaw.getWorldPosition(v); return v.addScaledVector(this.fwd(), 2); }
     const a = V3(), b = V3(); this.m.J.lHand.getWorldPosition(a); this.m.J.rHand.getWorldPosition(b);
+    if (this.act?.S?.firePose === 'point') return v.copy(b).addScaledVector(this.fwd(), 0.15);
     return v.addVectors(a, b).multiplyScalar(0.5);
   }
   pose(name, sp) { this.rig.set(name, sp); }
@@ -138,7 +139,7 @@ class Fighter {
     if (fighting) {
       this.ki = Math.min(100, this.ki + dt * (this.act?.type === 'charge' ? 32 : 2.2));
       if (G.time - this.lastHitT > 2) this.stun = Math.max(0, this.stun - 14 * dt);
-      if (this.form.drain) { this.hp -= this.form.drain * dt; if (this.hp < this.maxHp * 0.12) { this.hp = Math.max(this.hp, 1); this.setForm(0); say(this, 'Argh... my body can\'t take the Kaio-ken anymore!', 2.5, 'hurt'); } }
+      if (this.form.drain) { this.hp -= this.form.drain * dt; if (this.hp < this.maxHp * 0.12) { this.hp = Math.max(this.hp, 1); this.setForm(0); say(this, this.hero === 'frieza' ? 'Ngh... I can\'t... sustain full power...' : 'Argh... my body can\'t take the Kaio-ken anymore!', 2.5, 'hurt'); } }
       if (this.isApe) { this.apeT -= dt; if (this.apeT <= 0 && !this.act) this.revertApe('timeout'); }
     }
     if (this.act) { this.act.t += dt; this.run(this.act, dt, foe); }
@@ -340,7 +341,7 @@ class Fighter {
         this.vel.multiplyScalar(0.95); if (!this.isApe) this.vel.y -= 20 * dt;
         if (this.pos.y - this.ground() < 0.3) this.m.root.position.y = 0.25;
         break;
-      case 'victory': this.pose(this.hero === 'goku' ? 'victory' : 'crossed', 5); this.vel.multiplyScalar(0.9); break;
+      case 'victory': this.pose(this.hero === 'goku' ? 'victory' : this.hero === 'frieza' ? 'point' : 'crossed', 5); this.vel.multiplyScalar(0.9); break;
       case 'transform': {
         this.pose(a.t < 1.2 ? 'charge' : 'charge', 8); this.vel.multiplyScalar(0.8);
         if (Math.random() < 0.9) { const p = this.center().add(V3(rand(-4, 4), rand(-3, 4), rand(-4, 4))); fx.glow.emit(p, this.center().sub(p).multiplyScalar(2.5), new THREE.Color(this.def.forms[a.to].aura), 0.4, 0.05, 0.4); }
@@ -393,10 +394,12 @@ class Fighter {
     this.m.setExpression('hurt'); this.exprT = 0.5;
     // interrupt
     if (this.act?.type === 'super' && !this.isApe && this.act.phase !== 'fire' && this.act.S.type !== 'transform') this.endAct();
-    if (this.hp <= 0) { this.hp = 0; this.ko(att, h); return true; }
+    if (this.hp <= 0) { if (G.mode === 'training') { this.hp = this.maxHp; dmgNum(this.center(), 'HP RESET', 'info'); } else { this.hp = 0; this.ko(att, h); return true; } }
     if (!this.zenkai && this.hp < this.maxHp * 0.3) {
-      this.zenkai = true; this.powBonus = 1.15; this.ki = 100; setTimeout(() => G.state === 'fight' && bark(this, 'zenkai'), 400);
-      fx.burst(this.center(), 0xffe080, 60, 18, 0.6, 0.8); dmgNum(this.center(), 'ZENKAI BOOST!', 'info');
+      this.zenkai = true; setTimeout(() => G.state === 'fight' && bark(this, 'zenkai'), 400);
+      if (this.hero === 'piccolo') { this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.25); fx.burst(this.center(), 0x9dff6a, 60, 14, 0.6, 0.8); dmgNum(this.center(), 'REGENERATION!', 'info'); }
+      else if (this.hero === 'frieza') { this.powBonus = 1.12; this.ki = Math.min(100, this.ki + 50); fx.burst(this.center(), 0xff4de0, 60, 18, 0.6, 0.8); dmgNum(this.center(), 'EMPEROR\'S RAGE!', 'info'); }
+      else { this.powBonus = 1.15; this.ki = 100; fx.burst(this.center(), 0xffe080, 60, 18, 0.6, 0.8); dmgNum(this.center(), 'ZENKAI BOOST!', 'info'); }
     }
     if (this.hp < this.maxHp * 0.5 && Math.random() < 0.08) bark(this, 'hurt');
     this.stun += h.stun || 0;
@@ -465,7 +468,7 @@ class Fighter {
           const p = hp.clone().add(V3(rand(-2, 2), rand(-2, 2), rand(-2, 2)).multiplyScalar(this.S * 0.6));
           fx.glow.emit(p, hp.clone().sub(p).multiplyScalar(4), col, 0.25, 0.05, 0.25);
           if (a.t >= S.charge) {
-            a.phase = 'fire'; a.t = 0; scene.remove(a.orb); a.orb = null; this.pose(this.isApe ? 'roar' : 'fire', 30);
+            a.phase = 'fire'; a.t = 0; scene.remove(a.orb); a.orb = null; this.pose(this.isApe ? 'roar' : S.firePose || 'fire', 30);
             a.dir = foe.center().sub(this.handPos()).normalize(); a.len = 0; a.beam = fx.beam(S.color, S.width * (this.isApe ? 2.2 : 1));
             sfx.beam(1.6); shake(0.6); flash(0.3);
           }
@@ -595,7 +598,7 @@ class Fighter {
           for (let i = 0; i < 3; i++) { const q = p.clone().add(V3(rand(-40, 40), rand(-10, 40), rand(-40, 40))); fx.glow.emit(q, p.clone().sub(q).multiplyScalar(1.3), col, 0.6, 0.2, 0.75); }
           if (a.t > S.charge) {
             a.phase = 'throw'; a.t = 0; this.pose('throw', 20); const orb = a.orb; a.orb = null;
-            spawnProj(this, p, foe.center().sub(p).normalize(), { speed: 24, dmg: S.dmg * this.pow, r: size * 0.7, color: S.color, homing: 0.9, kind: 'ball', mesh: orb, life: 8 });
+            spawnProj(this, p, foe.center().sub(p).normalize(), { speed: S.speed || 24, dmg: S.dmg * this.pow, r: size * 0.7, color: S.color, homing: 0.9, kind: 'ball', mesh: orb, life: 8 });
             sfx.whoosh(); shake(0.5);
           }
         } else if (a.t > 0.6) this.endAct();
@@ -726,6 +729,12 @@ function aiThink(f, dt) {
   const ai = f.ai, foe = f.foe, I = f.intent, D = G.diff;
   Object.assign(I, blankIntent());
   if (G.state !== 'fight' || G.freeze) return;
+  if (G.mode === 'training' && !f.isPlayer) {
+    const m = TRAIN_MODES[G.train.dummy];
+    if (m === 'Stand') return;
+    if (m === 'Guard') { I.guard = true; return; }
+    if (m === 'Blast') { I.blast = Math.random() < 0.5; I.side = Math.sin(G.time * 0.7); I.up = clamp((foe.pos.y - f.pos.y) * 0.25, -1, 1); return; }
+  }
   const d = f.center().distanceTo(foe.center());
   ai.react -= dt; ai.t -= dt; ai.holdT -= dt;
   const threatProj = G.proj.some((p) => p.owner === foe && p.pos.distanceTo(f.center()) < 10);
@@ -758,8 +767,9 @@ function aiThink(f, dt) {
   // super
   const opts = f.supers.map((id, i) => ({ id, i, S: SUPERS[id] })).filter((o) => o.S.cost <= f.ki && o.S.type !== 'transform'
     && !(o.S.type === 'aoe' && d > o.S.radius) && !(o.S.type === 'beam' && d < 5) && !(o.S.type === 'rush' && d > 35) && !(o.S.type === 'roar' && d > o.S.radius)
-    && !(o.id === 'destructo' && !foe.isApe && Math.random() < 0.6) && !(o.S.type === 'ball' && d < 15));
-  if (f.isApe === false && foe.isApe && f.supers.includes('destructo') && f.ki >= 30 && Math.random() < 0.3) { I.super = f.supers.indexOf('destructo'); return; }
+    && !(o.S.type === 'disc' && !foe.isApe && Math.random() < 0.6) && !(o.S.type === 'ball' && d < 15));
+  const discI = f.supers.findIndex((id) => SUPERS[id].type === 'disc');
+  if (!f.isApe && foe.isApe && discI >= 0 && f.ki >= 30 && Math.random() < 0.3) { I.super = discI; return; }
   if (opts.length && Math.random() < [0.18, 0.28, 0.38][D] + (f.ki > 80 ? 0.2 : 0)) { I.super = pick(opts).i; return; }
   if (f.ki < 25 && d > 20 && Math.random() < 0.6) { ai.plan = { charge: true }; ai.t = rand(0.8, 1.6); I.charge = true; return; }
   // offense / movement
@@ -861,20 +871,19 @@ function updateHUD(dt) {
 // ---------------- flow ----------------
 function buildCards(step) {
   const cards = $('cards'); cards.innerHTML = '';
-  $('selTitle').textContent = step === 0 ? 'CHOOSE YOUR FIGHTER' : 'CHOOSE YOUR RIVAL';
+  $('selTitle').textContent = step === 0 ? (G.mode === 'training' ? 'TRAINING — CHOOSE YOUR FIGHTER' : 'CHOOSE YOUR FIGHTER') : (G.mode === 'training' ? 'CHOOSE A SPARRING PARTNER' : 'CHOOSE YOUR RIVAL');
   for (const def of Object.values(ROSTER)) {
     const c = document.createElement('div'); c.className = 'card';
-    if (step === 1 && def.hero === ROSTER[G.pick].hero) c.classList.add('taken');
     const forms = def.forms.map((f) => f.name).join(' → ');
     c.innerHTML = `<img src="${portraitURL(def.hero, def.forms[0], def.look, 'neutral')}"><div class="ct"><b>${def.name}</b><span>${def.saga} · Lv ${def.level}</span><small>${forms}</small></div>`;
     c.onclick = () => { sfx.ui(); if (step === 0) { G.pick = def.id; buildCards(1); } else startMatch(G.pick, def.id, +$('diff').value); };
     cards.appendChild(c);
   }
 }
-function startMatch(pid, eid, diff) {
-  SS.setItem('match', JSON.stringify({ pid, eid, diff }));
+function startMatch(pid, eid, diff, mode = G.mode || 'versus') {
+  SS.setItem('match', JSON.stringify({ pid, eid, diff, mode }));
   if (G.fighters.length) { location.reload(); return; }
-  G.diff = diff;
+  G.diff = diff; G.mode = mode;
   for (const s of ['title', 'select', 'result', 'pause']) $(s).classList.add('hidden');
   const p = new Fighter(ROSTER[pid], true), e = new Fighter(ROSTER[eid], false);
   G.fighters = [p, e];
@@ -882,9 +891,14 @@ function startMatch(pid, eid, diff) {
   p.obj.rotation.y = Math.atan2(e.pos.x - p.pos.x, e.pos.z - p.pos.z); e.obj.rotation.y = p.obj.rotation.y + Math.PI;
   $('pName').textContent = p.def.name; $('eName').textContent = e.def.name; $('pLvl').textContent = p.def.level; $('eLvl').textContent = e.def.level;
   camPos.copy(p.center()).add(V3(-4, 3, -8)); camLook.copy(e.center());
-  const g = p.hero === 'goku' ? p : e, v = p.hero === 'goku' ? e : p;
-  G.intro = { lines: introFor(g.def.id, v.def.id).map(([who, text]) => ({ f: who === 'goku' ? g : v, text })), i: -1, t: 0 };
-  G.state = 'intro'; $('hud').classList.remove('hidden'); nextLine();
+  $('hud').classList.remove('hidden');
+  if (mode === 'training') {
+    G.diff = 0; $('train').classList.remove('hidden'); updateTrainPanel();
+    G.state = 'fight'; G.fightStart = G.time; banner('TRAINING'); return;
+  }
+  const lines = introFor(p.def, e.def);
+  G.intro = { lines: lines.map(([who, text], i) => ({ f: p.hero === e.hero ? (i % 2 ? e : p) : who === p.hero ? p : e, text })), i: -1, t: 0 };
+  G.state = 'intro'; nextLine();
 }
 function nextLine() {
   const I = G.intro; I.i++; I.t = 0; G.lineAt = performance.now();
@@ -906,13 +920,44 @@ function togglePause() {
   if (G.state === 'fight') { G.state = 'paused'; $('pause').classList.remove('hidden'); }
   else if (G.state === 'paused') { G.state = 'fight'; $('pause').classList.add('hidden'); }
 }
-$('startBtn').onclick = () => { initAudio(); sfx.ui(); $('title').classList.add('hidden'); $('select').classList.remove('hidden'); buildCards(0); };
+$('trainBtn').onclick = () => { G.mode = 'training'; $('startBtn').onclick(true); };
+$('startBtn').onclick = (tr) => { if (tr !== true) G.mode = 'versus'; initAudio(); sfx.ui(); $('title').classList.add('hidden'); $('select').classList.remove('hidden'); buildCards(0); };
 $('backBtn').onclick = () => { $('select').classList.add('hidden'); $('title').classList.remove('hidden'); };
 $('resumeBtn').onclick = togglePause;
 $('quitBtn').onclick = $('selBtn').onclick = () => { SS.removeItem('match'); SS.setItem('goSelect', '1'); location.reload(); };
 $('rematchBtn').onclick = () => location.reload();
 addEventListener('keydown', (e) => { if (G.state === 'intro' && performance.now() - G.lineAt > 350 && (e.key === 'Enter' || e.key === ' ')) nextLine(); });
 addEventListener('click', () => { if (G.state === 'intro' && performance.now() - G.lineAt > 350) nextLine(); });
+
+// ---------------- training mode ----------------
+const TRAIN_MODES = ['Stand', 'Guard', 'Blast', 'Fight'];
+G.train = { dummy: 0, infKi: true, dmg: 0, best: 0, bestDmg: 0 };
+function updateTrainPanel() {
+  const T = G.train;
+  $('trDummy').textContent = TRAIN_MODES[T.dummy]; $('trKi').textContent = T.infKi ? 'ON' : 'OFF';
+  $('trBest').textContent = `${T.best} hits · ${Math.round(T.bestDmg)} dmg`;
+}
+function resetTraining() {
+  const [p, e] = G.fighters; for (const f of [p, e]) { f.endAct(); if (f.isApe) f.revertApe('manual'); f.setForm(0, true); f.hp = f.maxHp; f.ki = 100; f.stun = 0; f.vel.set(0, 0, 0); }
+  p.pos.set(0, arena.height(0, 6) + 1.5, 6); e.pos.set(8, arena.height(8, 30) + 3, 30); G.proj.forEach((q) => scene.remove(q.mesh)); G.proj.length = 0; banner('RESET');
+}
+let trLastHp = 0;
+function updateTraining(dt) {
+  const T = G.train, [p, e] = G.fighters;
+  if (pressed.has('f')) { T.dummy = (T.dummy + 1) % TRAIN_MODES.length; e.endAct(); updateTrainPanel(); sfx.ui(); }
+  if (pressed.has('g')) { T.infKi = !T.infKi; updateTrainPanel(); sfx.ui(); }
+  if (pressed.has('h')) resetTraining();
+  if (T.infKi) p.ki = 100;
+  // combo damage tracking
+  if (e.hp < trLastHp) T.dmg += trLastHp - e.hp;
+  if (G.comboT <= 0 && T.dmg > 0) T.dmg = 0;
+  if (G.comboT > 0 && (G.combo > T.best || T.dmg > T.bestDmg)) { T.best = Math.max(T.best, G.combo); T.bestDmg = Math.max(T.bestDmg, T.dmg); updateTrainPanel(); }
+  $('trNow').textContent = G.comboT > 0 ? `${G.combo} hits · ${Math.round(T.dmg)} dmg` : '—';
+  // dummy recovers after 3s without being hit
+  if (G.time - e.lastHitT > 3 && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * dt);
+  if (G.time - p.lastHitT > 3 && p.hp < p.maxHp) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * dt * 0.5);
+  trLastHp = e.hp;
+}
 
 // ---------------- loop ----------------
 let last = performance.now();
@@ -935,6 +980,7 @@ function frame(now) {
     if (!G.freeze) updateProj(dt);
     updateClash(dt);
     updateHUD(rdt);
+    if (G.mode === 'training') updateTraining(rdt);
   } else { G.titleT = (G.titleT || 0) + rdt; }
   arena.update(dt); fx.update(dt);
   if (p) updateCamera(rdt);
@@ -947,5 +993,5 @@ requestAnimationFrame(frame);
 
 // auto-resume rematch / go to select
 const saved = SS.getItem('match');
-if (saved) { const m = JSON.parse(saved); $('title').classList.add('hidden'); addEventListener('pointerdown', initAudio, { once: true }); addEventListener('keydown', initAudio, { once: true }); startMatch(m.pid, m.eid, m.diff); }
+if (saved) { const m = JSON.parse(saved); $('title').classList.add('hidden'); addEventListener('pointerdown', initAudio, { once: true }); addEventListener('keydown', initAudio, { once: true }); startMatch(m.pid, m.eid, m.diff, m.mode); }
 else if (SS.getItem('goSelect')) { SS.removeItem('goSelect'); $('title').classList.add('hidden'); $('select').classList.remove('hidden'); buildCards(0); addEventListener('pointerdown', initAudio, { once: true }); }

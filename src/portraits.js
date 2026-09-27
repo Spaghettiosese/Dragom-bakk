@@ -46,7 +46,18 @@ function vegetaHair(c, ssj) {
   return `<path d="${d}" fill="${c}" stroke="#000" stroke-width="1.5"/><path d="M44,16 L47,30 M56,16 L53,30" stroke="#fff" stroke-opacity=".25" stroke-width="2"/>`;
 }
 
+function piccoloHead(f) {
+  if (f.style === 'cape') return `<path d="M29,52 Q30,34 50,32 Q70,34 71,52Z" fill="#f4f4f0" stroke="#111" stroke-width="1.5"/><path d="M36,36 Q50,18 64,36Z" fill="#5b2c8c" stroke="#111" stroke-width="1.3"/>`;
+  return `<path d="M31,52 Q32,38 50,37 Q68,38 69,52Z" fill="#71b84a" stroke="#111" stroke-width="1.3"/><path d="M45,40 Q40,26 36,22 M55,40 Q60,26 64,22" stroke="#3a6a24" stroke-width="2.4" fill="none"/><circle cx="36" cy="22" r="2" fill="#71b84a"/><circle cx="64" cy="22" r="2" fill="#71b84a"/>`;
+}
+function friezaHead(f) {
+  const horns = f.style === 'first' ? '<path d="M32,46 Q16,40 16,28 Q24,38 36,42Z M68,46 Q84,40 84,28 Q76,38 64,42Z" fill="#3a2a44"/>'
+    : f.style === 'second' ? '<path d="M34,44 Q22,24 26,6 Q30,26 40,40Z M66,44 Q78,24 74,6 Q70,26 60,40Z" fill="#3a2a44"/>' : '';
+  return `${horns}<path d="M30,52 Q30,32 50,30 Q70,32 70,52 Q50,46 30,52Z" fill="#8a3cc4" stroke="#111" stroke-width="1.5"/><path d="M40,36 Q48,32 56,34" stroke="#fff" stroke-opacity=".5" stroke-width="2" fill="none"/>`;
+}
 function body(hero, look) {
+  if (hero === 'piccolo') return `<path d="M20,100 Q24,86 40,84 L50,90 L60,84 Q76,86 80,100Z" fill="#5b2c8c" stroke="#111" stroke-width="1.4"/>`;
+  if (hero === 'frieza') return `<path d="M24,100 Q28,86 42,84 L50,88 L58,84 Q72,86 76,100Z" fill="#f6f2f6" stroke="#111" stroke-width="1.4"/><ellipse cx="50" cy="96" rx="8" ry="4" fill="#8a3cc4"/>`;
   if (hero === 'goku') return `<path d="M20,100 Q24,86 40,84 L50,92 L60,84 Q76,86 80,100Z" fill="#ff7a18" stroke="#111" stroke-width="1.4"/><path d="M42,84 L50,95 L58,84 L55,84 L50,90 L45,84Z" fill="#1f3d9c"/>`;
   const pads = look.armor === 'saiyan' ? `<path d="M10,100 Q10,86 26,84 L34,92 L28,100Z M90,100 Q90,86 74,84 L66,92 L72,100Z" fill="#d8ae45" stroke="#111" stroke-width="1.2"/>` : '';
   return `<path d="M22,100 Q26,86 42,84 L50,88 L58,84 Q74,86 78,100Z" fill="#f3f1e8" stroke="#111" stroke-width="1.4"/><path d="M42,82 L50,90 L58,82 L58,86 L50,92 L42,86Z" fill="#1c2b7a"/>${pads}`;
@@ -64,16 +75,19 @@ export function portraitSVG(hero, form = {}, look = {}, expr = 'neutral') {
     <path d="M36,76 Q50,70 64,76 Q58,90 50,90 Q42,90 36,76Z" fill="#4a0a0a" stroke="#111"/><path d="M38,76 L42,82 L44,75 M62,76 L58,82 L56,75" fill="#fff"/>
     <ellipse cx="46" cy="68" rx="2" ry="1.4" fill="#222"/><ellipse cx="54" cy="68" rx="2" ry="1.4" fill="#222"/></svg>`;
   }
-  let skin = hero === 'goku' ? '#ffd3ab' : '#f6c9a0';
+  let skin = { goku: '#ffd3ab', vegeta: '#f6c9a0', piccolo: '#71b84a', frieza: '#f6f2f6' }[hero];
   if (form.tint) skin = '#ffab94';
   const iris = form.eyes ? hex(form.eyes) : '#111';
   const hair = hex(form.hair ?? 0x15161c);
-  const hairSvg = hero === 'goku' ? gokuHair(hair, form.spiky) : vegetaHair(hair, form.spiky);
+  const hairSvg = hero === 'goku' ? gokuHair(hair, form.spiky) : hero === 'vegeta' ? vegetaHair(hair, form.spiky) : hero === 'piccolo' ? piccoloHead(form) : friezaHead(form);
+  if (form.tint && hero === 'piccolo') skin = '#4f9a38';
   const scouter = look.scouter ? `<path d="M52,56 L68,55 L68,65 L53,64Z" fill="#33ff66" fill-opacity=".45" stroke="#1a6" stroke-width="1"/><rect x="67" y="54" width="5" height="12" fill="#e6e6e6" stroke="#111"/>` : '';
-  const aExpr = hero === 'vegeta' && expr === 'neutral' ? 'smirk' : expr;
+  const aExpr = hero !== 'goku' && expr === 'neutral' ? 'smirk' : expr;
+  const ears = hero === 'piccolo' ? `<path d="M31,58 L14,48 L32,66Z M69,58 L86,48 L68,66Z" fill="${skin}" stroke="#111" stroke-width="1.3"/>` : '';
+  const cheek = hero === 'frieza' ? '<path d="M33,66 L37,78 L35,66Z M67,66 L63,78 L65,66Z" fill="#8a3cc4"/>' : '';
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><radialGradient id="g"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="${aura}"/><stop offset="1" stop-color="#0a1030"/></radialGradient></defs>
   <circle cx="50" cy="50" r="50" fill="url(#g)"/>${body(hero, look)}<rect x="44" y="76" width="12" height="12" fill="${skin}"/>
-  ${FACE.replaceAll('SKIN', skin)}${eyes(hero, aExpr, iris)}${mouth(aExpr, hero)}${hairSvg}${scouter}</svg>`;
+  ${ears}${FACE.replaceAll('SKIN', skin)}${cheek}${eyes(hero === 'goku' ? 'goku' : 'vegeta', aExpr, iris)}${mouth(aExpr, hero === 'goku' ? 'goku' : 'vegeta')}${hairSvg}${scouter}</svg>`;
 }
 
 export function portraitURL(...a) { return 'data:image/svg+xml;utf8,' + encodeURIComponent(portraitSVG(...a)); }

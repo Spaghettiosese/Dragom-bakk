@@ -42,6 +42,27 @@ export const ROSTER = {
     ],
     supers: ['galickGun', 'explosiveWave', 'dirtyFireworks', 'finalImpact'],
   },
+  piccolo_nm: {
+    id: 'piccolo_nm', hero: 'piccolo', name: 'Piccolo', saga: 'Namek Saga', level: 38,
+    look: {},
+    forms: [
+      { id: 'base', name: 'Weighted Cape', pow: 1.05, spd: 1.0, drain: 0, cost: 0, aura: 0xf2ffe0, style: 'cape' },
+      { id: 'unweighted', name: 'Weights Off', pow: 1.35, spd: 1.4, drain: 0, cost: 20, aura: 0xd8ff9a, style: 'bare' },
+      { id: 'nail', name: 'Fused with Nail', pow: 1.9, spd: 1.5, drain: 0, cost: 55, aura: 0x9dff6a, style: 'bare' },
+    ],
+    supers: ['specialBeamCannon', 'hellzone', 'lightGrenade', 'demonSlam'],
+  },
+  frieza_nm: {
+    id: 'frieza_nm', hero: 'frieza', name: 'Frieza', saga: 'Namek Saga', level: 50,
+    look: {},
+    forms: [
+      { id: 'first', name: 'First Form', pow: 1.1, spd: 1.0, drain: 0, cost: 0, aura: 0xd8b0ff, style: 'first', eyes: 0xb0102a },
+      { id: 'second', name: 'Second Form', pow: 1.45, spd: 1.1, drain: 0, cost: 30, aura: 0xc080ff, style: 'second', eyes: 0xb0102a },
+      { id: 'final', name: 'Final Form', pow: 1.8, spd: 1.45, drain: 0, cost: 45, aura: 0xb070ff, style: 'final', eyes: 0xb0102a },
+      { id: 'full', name: '100% Full Power', pow: 2.25, spd: 1.55, drain: 60, cost: 60, aura: 0xff4de0, style: 'full', eyes: 0xb0102a },
+    ],
+    supers: ['deathBeam', 'deathSaucer', 'novaStrike', 'deathBall'],
+  },
 };
 
 // type: beam | rush | aoe | ball | disc | barrage | roar | transform
@@ -60,11 +81,21 @@ export const SUPERS = {
   destructo: { name: 'Destructo Disc', type: 'disc', cost: 30, dmg: 1000, color: 0xfff27a, note: 'Cuts a Great Ape tail!' },
   spiritBomb: { name: 'Spirit Bomb', type: 'ball', cost: 90, dmg: 3600, color: 0x9fe8ff, charge: 2.6, size: 5 },
   powerBall: { name: 'Power Ball → Great Ape', type: 'transform', cost: 50, color: 0xfff4c0 },
+  specialBeamCannon: { name: 'Special Beam Cannon', type: 'beam', cost: 45, dmg: 2000, color: 0xffe36a, charge: 1.5, width: 0.5, pose: 'sbc', firePose: 'point', pierce: true },
+  hellzone: { name: 'Hellzone Grenade', type: 'barrage', cost: 40, dmg: 1500, color: 0xfff08a, count: 30 },
+  lightGrenade: { name: 'Light Grenade', type: 'ball', cost: 55, dmg: 2200, color: 0xfff6a0, charge: 1.1, size: 2.4, speed: 42 },
+  demonSlam: { name: 'Demon Slam', type: 'rush', cost: 30, dmg: 1400, color: 0xb6ff7a, hits: 6 },
+  deathBeam: { name: 'Death Beam', type: 'beam', cost: 20, dmg: 850, color: 0xff5ad0, charge: 0.35, width: 0.3, pose: 'point', firePose: 'point' },
+  deathSaucer: { name: 'Death Saucer', type: 'disc', cost: 30, dmg: 1100, color: 0xff7ae0, note: 'Cuts a Great Ape tail!' },
+  novaStrike: { name: 'Nova Strike', type: 'rush', cost: 35, dmg: 1600, color: 0xd070ff, hits: 7 },
+  deathBall: { name: 'Death Ball', type: 'ball', cost: 90, dmg: 3800, color: 0xff6a3a, charge: 2.2, size: 6 },
   apeRoar: { name: 'Primal Roar', type: 'roar', cost: 25, dmg: 300, color: 0xff6060, radius: 30 },
 };
 
 export const PALETTES = {
   goku: { skin: 0xffd3ab, gi: 0xff7a18, under: 0x1f3d9c, belt: 0x1f3d9c, boot: 0x1f3d9c, bootTrim: 0xd23b2a, band: 0x1f3d9c },
+  piccolo: { skin: 0x71b84a, gi: 0x5b2c8c, sash: 0x3a7fd8, shoe: 0x7a4a26, patch: 0xd9828f, cape: 0xf4f4f0 },
+  frieza: { skin: 0xf6f2f6, gem: 0x8a3cc4, horn: 0x3a2a44, armor: 0xf0eee8, pad: 0x6a3a8a, suit: 0x2a2a38 },
   vegeta: { skin: 0xf6c9a0, suit: 0x1c2b7a, armor: 0xf3f1e8, pad: 0xd8ae45, glove: 0xf7f7f2, boot: 0xf7f7f2, bootTip: 0xe0b83c, tail: 0x6a3f22 },
 };
 
@@ -95,9 +126,53 @@ const INTRO = {
   ],
 };
 
-export function introFor(gokuId, vegId) {
-  const g = gokuId.endsWith('ss') ? 'ss' : 'nm', v = vegId.endsWith('ss') ? 'ss' : 'nm';
-  return INTRO[`${g}-${v}`];
+const PAIR = {
+  'frieza-goku': [
+    ['frieza', 'So you are the monkey who has been causing my men so much trouble. How quaint.'],
+    ['goku', 'You\'re Frieza. You hurt Krillin... and you destroyed the Saiyans\' home. I won\'t forgive you.'],
+    ['frieza', 'Forgive me? Ho ho ho! You speak as though you have a choice.'],
+    ['goku', 'Everyone\'s counting on me. Let\'s settle this — right here!'],
+  ],
+  'frieza-vegeta': [
+    ['vegeta', 'Frieza! For years I bowed to you. Today the Prince of all Saiyans takes back his pride!'],
+    ['frieza', 'Vegeta, my loyal little monkey. Have the Dragon Balls gone to your head?'],
+    ['vegeta', 'You murdered my father and destroyed my planet. I will make you scream!'],
+    ['frieza', 'Such passion. It will make breaking you all the sweeter.'],
+  ],
+  'frieza-piccolo': [
+    ['piccolo', 'You\'ve spilled enough Namekian blood on this planet, Frieza.'],
+    ['frieza', 'A Namekian with some fight in him? How novel. You\'ll make a fine trophy.'],
+    ['piccolo', 'Nail\'s power flows through me now. You won\'t find me as easy as the villagers.'],
+    ['frieza', 'Then do entertain me, slug.'],
+  ],
+  'goku-piccolo': [
+    ['piccolo', 'Goku. Our truce ends the moment this is over — so fight me seriously.'],
+    ['goku', 'Heh, you never change, Piccolo. But you\'ve gotten a lot stronger, huh?'],
+    ['piccolo', 'Strong enough to finally beat you. Don\'t hold back.'],
+    ['goku', 'Wouldn\'t dream of it. Let\'s go!'],
+  ],
+  'piccolo-vegeta': [
+    ['vegeta', 'The Namekian. You\'re a long way from being a match for a Saiyan elite.'],
+    ['piccolo', 'You talk too much for someone who lost to a low-class warrior.'],
+    ['vegeta', 'You insolent green — I\'ll tear those antennae right off your head!'],
+    ['piccolo', 'Try it.'],
+  ],
+};
+const MIRROR = {
+  goku: ['Whoa, another me? This is gonna be fun!', 'Guess we\'ll see which of us trained harder!'],
+  vegeta: ['An imposter wearing my face? There is only ONE Prince!', 'Then prove it, fool!'],
+  piccolo: ['A copy... Another of Kami\'s tricks?', 'No tricks. Just the better Namekian.'],
+  frieza: ['Two emperors? How unseemly. One of us must go.', 'Then it shall be you. Ho ho ho!'],
+};
+// returns [[hero, text], ...]
+export function introFor(a, b) {
+  if (a.hero === b.hero) { const m = MIRROR[a.hero]; return [[a.hero, m[0]], [a.hero, m[1]]]; }
+  const set = [a.hero, b.hero].sort().join('-');
+  if (set === 'goku-vegeta') {
+    const gd = a.hero === 'goku' ? a : b, vd = a.hero === 'goku' ? b : a;
+    return INTRO[`${gd.id.endsWith('ss') ? 'ss' : 'nm'}-${vd.id.endsWith('ss') ? 'ss' : 'nm'}`];
+  }
+  return PAIR[set];
 }
 
 // Event barks. {form} placeholder replaced at runtime.
@@ -122,6 +197,41 @@ export const BARKS = {
     defeat: ['Guess I... still have training to do...'],
     counter: ['Too slow!', 'Over here!'],
     rageApe: ['A giant ape?! So that\'s what happened to Grandpa...'],
+  },
+  piccolo: {
+    transform_unweighted: ['Hmph. Time to lose the dead weight.', 'These weights were holding me back. Not anymore.'],
+    transform_nail: ['Nail... your power is mine now. We are one!', 'I am no longer Piccolo, nor Nail — I am the Namekian who will defeat you!'],
+    specialBeamCannon: ['Special... BEAM... CANNON!!', 'Hold still — this one pierces anything!'],
+    hellzone: ['Nowhere to run! Hellzone Grenade!'],
+    lightGrenade: ['LIGHT GRENADE!'],
+    demonSlam: ['You\'re open!'],
+    hurt: ['Tch... not bad.', 'Ngh!'],
+    zenkai: ['Hmph. A Namekian can regrow anything.'],
+    stunned: ['Can\'t... focus...'],
+    clash: ['Is that all?!', 'I\'ve trained too hard to lose here!'],
+    victory: ['Stay down. You\'re not ready yet.', 'Hmph. Go train some more.'],
+    defeat: ['Damn it... not again...'],
+    counter: ['Predictable.', 'Behind you.'],
+    tailcut: ['That tail is your weakness, Saiyan.'],
+    rageApe: ['A Great Ape... this is exactly why I blew up the moon!'],
+  },
+  frieza: {
+    transform_second: ['I\'ll show you my second form. You should feel honored.'],
+    transform_final: ['Well done, you\'ve earned a glimpse of my true form. Few ever do.', 'Ho ho ho... now let\'s begin in earnest.'],
+    transform_full: ['One hundred percent! You\'ll regret making me go this far!'],
+    deathBeam: ['Death Beam.', 'Pop.'],
+    deathSaucer: ['Try to dodge this!'],
+    novaStrike: ['Keep up, if you can!'],
+    deathBall: ['I\'ll destroy you and this planet together!', 'Say goodbye!'],
+    hurt: ['You... you scratched me?!', 'How DARE you!'],
+    zenkai: ['Now you\'ve made me angry...'],
+    stunned: ['Impossible... my body...'],
+    clash: ['Insolent worm!', 'I am the EMPEROR!'],
+    victory: ['Ho ho ho. Did you honestly think you could win?', 'Know your place, monkey.'],
+    defeat: ['This isn\'t... how it ends... not for ME...'],
+    counter: ['Too slow.', 'Ho ho!'],
+    tailcut: ['Your tail was always your weakness, monkey.'],
+    rageApe: ['A Great Ape? Ho ho, what a nostalgic sight.'],
   },
   vegeta: {
     transform_full: ['Witness the power of an elite Saiyan!', 'HAAAAH! Now you face my true power!'],

@@ -1,4 +1,4 @@
-# Saiyan Showdown — Goku vs Vegeta (tech demo)
+# Saiyan Showdown — Goku, Vegeta, Piccolo & Frieza (tech demo)
 
 A third-person 3D arena fighter inspired by *Dragon Ball Z: Kakarot*. It runs in the browser on Three.js, which is bundled in `vendor/`, so it needs no build step and no network connection.
 
@@ -10,7 +10,9 @@ python3 -m http.server 8000     # or any static server
 
 ## Features
 - **Third-person chase camera** over the shoulder, locked on to your rival as in Kakarot. It uses cinematic cameras for transformations, the pre-fight dialogue and the KO.
-- **4 fighters:** Goku and Vegeta, each in a Saiyan Saga and a Namek Saga version. Every version has its own forms and supers.
+- **6 fighters:** Piccolo regenerates once at low HP, Frieza gets an "Emperor's Rage" boost, and his 100% form drains HP.
+- **Training mode:** a dummy you can set to Stand / Guard / Blast / Fight (F), infinite ki (G), reset (H), combo and damage counter, and no KOs.
+- **Original Saiyans:** Goku and Vegeta, each in a Saiyan Saga and a Namek Saga version. Every version has its own forms and supers.
 
   | Fighter | Forms | Supers |
   |---|---|---|
@@ -18,6 +20,8 @@ python3 -m http.server 8000     # or any static server
   | Goku (Namek) | Base → Kaio-ken x20 → Super Saiyan | Kamehameha, Meteor Smash, Destructo Disc, Super Kamehameha |
   | Vegeta (Saiyan) | Base → Full Power → **Great Ape** | Galick Gun, Explosive Wave, Rapid Fire Barrage, Power Ball |
   | Vegeta (Namek) | Base → Zenkai Surge → Super Saiyan (What-If) | Galick Gun, Explosive Wave, Rapid Fire Barrage, Final Impact |
+  | Piccolo (Namek) | Weighted Cape → Weights Off → Fused with Nail | Special Beam Cannon, Hellzone Grenade, Light Grenade, Demon Slam |
+  | Frieza (Namek) | First → Second → Final Form → 100% Full Power | Death Beam, Death Saucer, Nova Strike, Death Ball |
 
 - **Great Ape:** Vegeta throws the Power Ball, a moon appears and he grows to 7× size. As the ape he has super armor, heavy swipes, Mouth Energy Wave, Stomp Quake (flying targets avoid it), Primal Roar (causes fear-stun) and Great Ape Crush. The form ends after 45 s, or earlier when **Goku's Destructo Disc cuts the tail**.
 - **Combat:** a 5-hit rush combo that closes the distance to your rival, homing ki blasts, guard, **Perfect Counter** (guard just before a hit to teleport behind the attacker), vanish step, ki charge, a stun gauge and a one-time **Zenkai boost** below 30% HP. Kaio-ken drains HP while it is active.

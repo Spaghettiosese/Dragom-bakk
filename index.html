@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Saiyan Showdown — Goku vs Vegeta</title>
+<title>Saiyan Showdown</title>
 <link rel="stylesheet" href="style.css">
 <script type="importmap">
 { "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/addons/" } }
@@ -45,14 +45,24 @@
   <div id="superName"></div>
   <div id="clash"><div class="clashBar"><div id="clashFill"></div></div><div class="clashTxt">BEAM CLASH! MASH <kbd>J</kbd> <kbd>K</kbd></div></div>
   <div id="dmgLayer"></div>
+  <div id="train" class="train hidden">
+    <b>TRAINING MODE</b>
+    <div><kbd>F</kbd> Dummy: <span id="trDummy">Stand</span></div>
+    <div><kbd>G</kbd> Infinite Ki: <span id="trKi">ON</span></div>
+    <div><kbd>H</kbd> Reset positions &amp; forms</div>
+    <hr>
+    <div>Combo: <span id="trNow">—</span></div>
+    <div>Best: <span id="trBest">0</span></div>
+    <small>No KOs — HP refills. Try every form &amp; super!</small>
+  </div>
 </div>
 
 <div id="dlg" class="hidden"><img id="dlgPic" alt=""><div><div id="dlgName"></div><div id="dlgText"></div></div></div>
 
 <!-- screens -->
 <div id="title" class="screen">
-  <div class="logo"><span class="s1">SAIYAN</span><span class="s2">SHOWDOWN</span><span class="s3">Goku vs Vegeta · tech demo</span></div>
-  <button id="startBtn" class="btn">PRESS START</button>
+  <div class="logo"><span class="s1">SAIYAN</span><span class="s2">SHOWDOWN</span><span class="s3">Goku · Vegeta · Piccolo · Frieza</span></div>
+  <div class="sel-row"><button id="startBtn" class="btn">VERSUS</button><button id="trainBtn" class="btn ghost">TRAINING</button></div>
   <p class="hint">Fan-made demo inspired by DBZ: Kakarot. Best with keyboard.</p>
 </div>
 

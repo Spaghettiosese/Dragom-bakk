@@ -45,15 +45,18 @@ function drawFace(ctx, hero, expr, skin, iris, ape) {
     }
     return;
   }
-  const ang = hero === 'vegeta' || expr === 'angry' || expr === 'shout';
+  const sharp = hero === 'vegeta' || hero === 'piccolo' || hero === 'frieza';
+  const ang = sharp || expr === 'angry' || expr === 'shout';
   const ey = 118, c = 128;
+  if (hero === 'frieza') { ctx.fillStyle = '#8a3cc4'; for (const q of [-1, 1]) { ctx.beginPath(); ctx.moveTo(c + q * 70, 150); ctx.lineTo(c + q * 58, 196); ctx.lineTo(c + q * 66, 150); ctx.fill(); } }
+  if (hero === 'piccolo') { ctx.fillStyle = 'rgba(20,70,10,0.35)'; ctx.fillRect(40, 60, 176, 22); }
   for (const s of [-1, 1]) {
     ctx.fillStyle = '#111'; ctx.beginPath(); // brows (thick, anime)
     if (expr === 'hurt') { ctx.moveTo(c + s * 12, 80); ctx.lineTo(c + s * 62, 92); ctx.lineTo(c + s * 62, 102); ctx.lineTo(c + s * 12, 90); }
     else if (ang) { ctx.moveTo(c + s * 8, 104); ctx.lineTo(c + s * 66, 76); ctx.lineTo(c + s * 68, 88); ctx.lineTo(c + s * 12, 114); }
     else { ctx.moveTo(c + s * 10, 92); ctx.lineTo(c + s * 64, 82); ctx.lineTo(c + s * 66, 93); ctx.lineTo(c + s * 10, 102); }
     ctx.fill();
-    const h = hero === 'vegeta' ? 18 : 24;
+    const h = sharp ? 18 : 24;
     if (expr === 'hurt') { ctx.lineWidth = 7; ctx.strokeStyle = '#111'; ctx.beginPath(); ctx.moveTo(c + s * 16, ey + 4); ctx.lineTo(c + s * 60, ey - 2); ctx.stroke(); continue; }
     // sclera: sharp outer corner, flat top lash line
     ctx.fillStyle = '#fff'; ctx.strokeStyle = '#111'; ctx.lineWidth = 6;
@@ -78,7 +81,8 @@ function drawFace(ctx, hero, expr, skin, iris, ape) {
     ctx.fillStyle = '#fff'; ctx.fillRect(112, 178, 32, 5);
   } else {
     ctx.beginPath();
-    if (hero === 'vegeta') { ctx.moveTo(112, 184); ctx.quadraticCurveTo(130, 186, 146, 176); }
+    if (hero === 'frieza') { ctx.strokeStyle = '#2a1030'; ctx.lineWidth = 8; ctx.moveTo(112, 182); ctx.quadraticCurveTo(128, 188, 146, 178); }
+    else if (sharp) { ctx.moveTo(112, 184); ctx.quadraticCurveTo(130, 186, 146, 176); }
     else if (expr === 'hurt') { ctx.moveTo(112, 186); ctx.quadraticCurveTo(128, 176, 144, 186); }
     else { ctx.moveTo(114, 180); ctx.quadraticCurveTo(128, 188, 142, 180); }
     ctx.stroke();
@@ -207,7 +211,10 @@ export function buildFighter(def, form) {
   const faceMat = toon(0xffffff, { map: faceTex });
   const face = new THREE.Mesh(new THREE.SphereGeometry(R * 1.004, 28, 18, Math.PI / 2 - Math.PI * 0.37, Math.PI * 0.74, Math.PI * 0.30, Math.PI * 0.48), faceMat);
   face.scale.set(0.9, 1.08, 0.95); J.head.add(face);
-  const hairs = { normal: buildHair(J.head, hero, false, hairMat, R), spiky: buildHair(J.head, hero, true, hairMat, R) };
+  const ALIEN = hero === 'piccolo' || hero === 'frieza';
+  const hairs = ALIEN ? { normal: g('h', J.head), spiky: g('h2', J.head) } : { normal: buildHair(J.head, hero, false, hairMat, R), spiky: buildHair(J.head, hero, true, hairMat, R) };
+  let onForm = null;
+  if (ALIEN) { ears.forEach((e) => { e.visible = false; }); onForm = buildAlien(hero, J, M, skin, pal, R, root); } else {
 
   // torso
   const topCol = hero === 'goku' ? pal.gi : pal.suit;
@@ -271,6 +278,7 @@ export function buildFighter(def, form) {
     if (hero === 'vegeta') part(new THREE.ConeGeometry(0.06, 0.1, 6), J.trim, S, [0, -0.47, 0.2], [Math.PI / 2, 0, 0], [1, 1, 0.6]);
   }
 
+  }
   const aura = makeAura(); aura.position.y = 1.0; aura.scale.set(0.9, 1.1, 0.9); root.add(aura);
   root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
 
@@ -289,7 +297,7 @@ export function buildFighter(def, form) {
       this.tint = f.tint ? new THREE.Color(f.tint) : null;
       for (const m of mats) { m.color.copy(m.userData.base); if (this.tint && m !== hairMat) m.color.lerp(this.tint, 0.35); }
       if (f.hair === 0xffe24a) { hairMat.emissive = new THREE.Color(0x6a4a00); } else hairMat.emissive = new THREE.Color(0);
-      aura.material.uniforms.color.value.set(f.aura);
+      aura.material.uniforms.color.value.set(f.aura); onForm && onForm(f);
       const e = this.expr; this.expr = ''; this.setExpression(e || 'neutral');
     },
   };
@@ -374,6 +382,8 @@ export const POSES = {
   roar: { hips: [-0.1, 0, 0], spine: [-0.45, 0, 0], head: [-0.6, 0, 0], lArm: [0.1, 0, 1.3], lFore: [-1.4, 0, 0], rArm: [0.1, 0, -1.3], rFore: [-1.4, 0, 0], lLeg: [-0.3, 0, 0.3], lShin: [0.5, 0, 0], rLeg: [-0.3, 0, -0.3], rShin: [0.5, 0, 0] },
   victory: { hips: Z, spine: [-0.05, 0, 0], head: [-0.15, 0, 0], lArm: [0.1, 0, 0.3], lFore: [-0.9, 0, 0], rArm: [-2.9, 0, -0.35], rFore: [-0.2, 0, 0], lLeg: [0, 0, 0.1], lShin: [0.05, 0, 0], rLeg: [0, 0, -0.1], rShin: [0.05, 0, 0] },
   crossed: { hips: Z, spine: [-0.05, 0, 0], head: [-0.2, 0.3, 0], lArm: [-0.55, 0.5, -0.3], lFore: [-1.95, 0.8, 0], rArm: [-0.55, -0.5, 0.3], rFore: [-1.95, -0.8, 0], lLeg: [0, 0, 0.1], lShin: [0.05, 0, 0], rLeg: [0, 0, -0.1], rShin: [0.05, 0, 0] },
+  sbc: { hips: Z, spine: [-0.1, 0.3, 0], head: [0.05, -0.3, 0], lArm: [0.1, 0, 0.3], lFore: [-0.6, 0, 0], rArm: [-2.2, 0.3, 0.6], rFore: [-2.3, 0, 0], lLeg: [-0.3, 0, 0.3], lShin: [0.5, 0, 0], rLeg: [0.2, 0, -0.3], rShin: [0.4, 0, 0] },
+  point: { hips: [0, 0.3, 0], spine: [0.05, 0.4, 0], head: [0, -0.4, 0], lArm: [0.1, 0, 0.25], lFore: [-0.5, 0, 0], rArm: [-1.55, -0.4, 0], rFore: [0, 0, 0], lLeg: [-0.4, 0, 0.2], lShin: [0.7, 0, 0], rLeg: [0.2, 0, -0.1], rShin: [0.5, 0, 0] },
   apeIdle: { hips: [0.2, 0, 0], spine: [0.3, 0, 0], head: [-0.25, 0, 0], lArm: [-0.25, 0, 0.35], lFore: [-0.5, 0, 0], rArm: [-0.25, 0, -0.35], rFore: [-0.5, 0, 0], lLeg: [-0.45, 0, 0.1], lShin: [0.6, 0, 0], rLeg: [-0.45, 0, -0.1], rShin: [0.6, 0, 0] },
   down: { hips: [-1.45, 0, 0], spine: [0.1, 0, 0], head: [0.3, 0.4, 0], lArm: [0.1, 0, 1.2], lFore: [-0.3, 0, 0], rArm: [0.1, 0, -1.3], rFore: [-0.2, 0, 0], lLeg: [0.1, 0, 0.3], lShin: [0.2, 0, 0], rLeg: [-0.4, 0, -0.2], rShin: [0.9, 0, 0] },
 };
@@ -391,4 +401,80 @@ export class Rig {
     if (this.m.J.jaw) this.m.J.jaw.rotation.x = this.pose === 'roar' ? 0.5 : 0.05;
     if (this.m.J.tail && this.m.J.tail.visible) this.m.J.tail.children[0] && (this.m.J.tail.rotation.y = Math.sin(this.t * 1.5) * 0.4);
   }
+}
+
+// ---------- Piccolo / Frieza bodies ----------
+function buildAlien(hero, J, M, skin, pal, R, root) {
+  if (hero === 'piccolo') {
+    const gi = M(pal.gi), sash = M(pal.sash), shoe = M(pal.shoe), patch = M(pal.patch), cape = M(pal.cape);
+    for (const s of [-1, 1]) part(new THREE.ConeGeometry(0.035, 0.16, 6), skin, J.head, [s * 0.17, 0.03, -0.01], [0, 0, s * -1.25], [1, 1, 0.5]);
+    const ant = g('antennae', J.head);
+    for (const s of [-1, 1]) { const a = part(limb(0.012, 0.012, 0.16, 6), skin, ant, [s * 0.05, 0.14, 0.1], [2.6, 0, s * -0.3]); part(sph(0.02, 6, 6), skin, a, [0, -0.16, 0]); }
+    part(new THREE.CylinderGeometry(0.27, 0.2, 0.58, 16), gi, J.spine, [0, 0.29, 0], [0, 0, 0], [1, 1, 0.62]);
+    part(new THREE.CylinderGeometry(0.22, 0.22, 0.1, 16), sash, J.hips, [0, 0.06, 0], [0, 0, 0], [1, 1, 0.72]);
+    part(new THREE.BoxGeometry(0.08, 0.3, 0.03), sash, J.hips, [0.05, -0.12, 0.15]);
+    part(sph(0.2, 14, 10), gi, J.hips, [0, 0, 0], [0, 0, 0], [1.05, 0.6, 0.7]);
+    // turban + cape (weighted clothing)
+    const turban = g('turban', J.head); part(new THREE.CylinderGeometry(R * 0.98, R * 0.92, 0.16, 20), cape, turban, [0, 0.12, -0.01]);
+    part(new THREE.SphereGeometry(R * 0.7, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), gi, turban, [0, 0.19, -0.01]);
+    const capeG = g('cape', J.spine);
+    for (const s of [-1, 1]) part(sph(0.17, 14, 10), cape, capeG, [s * 0.3, 0.6, 0], [0, 0, s * 0.3], [1.2, 0.6, 1.1]);
+    const cg = new THREE.CylinderGeometry(0.38, 0.62, 1.4, 20, 1, true, Math.PI * 0.55, Math.PI * 0.9); cg.translate(0, -0.7, 0);
+    const cm = toon(pal.cape, { side: THREE.DoubleSide }); part(cg, cm, capeG, [0, 0.62, -0.02]);
+    J.cape = capeG;
+    for (const s of ['l', 'r']) {
+      const A = J[s + 'Arm'], F = J[s + 'Fore'];
+      part(sph(0.1), skin, A, [0, -0.02, 0], [0, 0, 0], [1.1, 1, 1]);
+      part(limb(0.088, 0.072, 0.34), skin, A); part(sph(0.07, 10, 8), patch, A, [0, -0.16, 0.05], [0, 0, 0], [1, 1.4, 0.5], false);
+      part(limb(0.074, 0.06, 0.32), skin, F); part(sph(0.06, 10, 8), patch, F, [0, -0.12, 0.05], [0, 0, 0], [1, 1.4, 0.5], false);
+      part(limb(0.07, 0.07, 0.08), M(0xc0303a), F, [0, -0.25, 0]);
+      J[s + 'Hand'] = part(sph(0.07, 10, 8), skin, F, [0, -0.35, 0.01], [0, 0, 0], [0.9, 1.1, 1]);
+      const L = J[s + 'Leg'], S = J[s + 'Shin'];
+      part(limb(0.14, 0.12, 0.52), gi, L); part(limb(0.12, 0.08, 0.36), gi, S);
+      part(new THREE.BoxGeometry(0.13, 0.12, 0.28), shoe, S, [0, -0.46, 0.05]);
+    }
+    return (f) => { turban.visible = f.style === 'cape'; capeG.visible = f.style === 'cape'; ant.visible = f.style !== 'cape'; };
+  }
+  // Frieza
+  const gem = M(pal.gem), horn = M(pal.horn), armor = M(pal.armor), pad = M(pal.pad), suit = M(pal.suit);
+  gem.emissive = new THREE.Color(0x2a0a40);
+  const dome = part(new THREE.SphereGeometry(R * 1.06, 20, 10, 0, Math.PI * 2, 0, Math.PI * 0.36), gem, J.head, [0, 0.015, -0.01], [-0.25, 0, 0]);
+  const horns1 = g('horns1', J.head), horns2 = g('horns2', J.head);
+  for (const s of [-1, 1]) {
+    const h1 = part(new THREE.ConeGeometry(0.04, 0.22, 8), horn, horns1, [s * 0.14, 0.08, 0], [0, 0, s * -1.0]); h1.geometry.translate(0, 0.11, 0);
+    const h2 = part(new THREE.ConeGeometry(0.05, 0.36, 8), horn, horns2, [s * 0.13, 0.1, -0.02], [0, 0, s * -0.35]); h2.geometry.translate(0, 0.18, 0);
+  }
+  part(new THREE.CylinderGeometry(0.25, 0.18, 0.58, 16), skin, J.spine, [0, 0.29, 0], [0, 0, 0], [1, 1, 0.62]);
+  part(sph(0.18, 14, 10), skin, J.hips, [0, 0, 0], [0, 0, 0], [1.05, 0.6, 0.7]);
+  const gems = g('gems', root);
+  const chestGem = part(sph(0.1, 14, 10), gem, J.spine, [0, 0.42, 0.1], [0, 0, 0], [1.6, 1, 0.5]);
+  const armorG = g('armor', J.spine);
+  part(new THREE.CylinderGeometry(0.29, 0.22, 0.42, 16), armor, armorG, [0, 0.36, 0], [0, 0, 0], [1, 1, 0.7]);
+  for (const s of [-1, 1]) part(new THREE.SphereGeometry(0.17, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), pad, armorG, [s * 0.32, 0.56, 0], [0, 0, s * -0.4], [1.2, 0.7, 1]);
+  const shorts = part(sph(0.21, 14, 10), suit, J.hips, [0, -0.02, 0], [0, 0, 0], [1.05, 0.55, 0.72]);
+  const gemParts = [chestGem];
+  for (const s of ['l', 'r']) {
+    const A = J[s + 'Arm'], F = J[s + 'Fore'];
+    gemParts.push(part(sph(0.1), gem, A, [0, -0.02, 0], [0, 0, 0], [1.2, 1, 1.1]));
+    part(limb(0.08, 0.065, 0.34), skin, A);
+    part(limb(0.066, 0.055, 0.32), skin, F); gemParts.push(part(sph(0.05, 10, 8), gem, F, [0, -0.12, 0.05], [0, 0, 0], [1, 1.5, 0.6], false));
+    J[s + 'Hand'] = part(sph(0.065, 10, 8), skin, F, [0, -0.34, 0.01], [0, 0, 0], [0.9, 1.1, 1]);
+    const L = J[s + 'Leg'], S = J[s + 'Shin'];
+    part(limb(0.11, 0.085, 0.52), skin, L); part(limb(0.085, 0.06, 0.4), skin, S);
+    gemParts.push(part(sph(0.06, 10, 8), gem, S, [0, -0.1, 0.06], [0, 0, 0], [1, 1.5, 0.6], false));
+    part(new THREE.BoxGeometry(0.1, 0.07, 0.24), skin, S, [0, -0.46, 0.06]);
+  }
+  // tail
+  const tail = g('ftail', J.hips); tail.position.set(0, -0.05, -0.15); let prev = tail;
+  for (let i = 0; i < 7; i++) { const seg = g('ft' + i, prev, i ? [0, -0.17, 0] : [0, 0, 0]); seg.rotation.x = i ? 0.28 : 2.3; part(limb(0.07 - i * 0.007, 0.06 - i * 0.007, 0.18), i === 6 ? gem : skin, seg); prev = seg; }
+  return (f) => {
+    const st = f.style;
+    horns1.visible = st === 'first'; horns2.visible = st === 'second'; armorG.visible = st === 'first';
+    dome.scale.setScalar(st === 'second' ? 1.12 : 1); gemParts.forEach((m) => { m.visible = st === 'final' || st === 'full'; });
+    shorts.visible = st === 'first';
+    root.scale.setScalar(st === 'second' ? 1.28 : 1);
+    const bulk = st === 'full' ? 1.2 : st === 'second' ? 1.12 : 1;
+    for (const s of ['l', 'r']) { J[s + 'Arm'].scale.set(bulk, 1, bulk); J[s + 'Leg'].scale.set(bulk, 1, bulk); }
+    J.spine.scale.set(bulk, 1, bulk);
+  };
 }
